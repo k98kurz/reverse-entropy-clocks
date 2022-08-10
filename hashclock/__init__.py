@@ -1,1 +1,1 @@
-from hashclock.classes import HashClock
+from hashclock.classes import HashClock, VectorHashClock
