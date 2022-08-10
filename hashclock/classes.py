@@ -22,13 +22,13 @@ def bytes_are_same(b1: bytes, b2: bytes) -> bool:
 class HashClock:
     state: list[bytes] = field(default_factory=list)
 
-    def setup(self, lock_count: int, preimage_size: int = 16) -> tuple[bytes]:
+    def setup(self, lock_count: int, root_size: int = 16) -> tuple[bytes]:
         """Set up the instance if it hasn't been setup yet and return
             the chain of hashlock keys.
         """
         assert len(self.state) == 0, 'lock has already been setup'
 
-        root = token_bytes(preimage_size)
+        root = token_bytes(root_size)
         states = [root]
 
         while len(states) < lock_count + 1:
