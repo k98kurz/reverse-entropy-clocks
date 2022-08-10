@@ -10,7 +10,10 @@ locking scripts and logical clocks as invented by Leslie Lamport.
 
 ## Status
 
-- [ ] @todo
+- [ ] Readme
+- [x] Tests
+- [x] Interfaces
+- [x] Classes
 
 ## Installation
 
@@ -32,11 +35,30 @@ published as a package.
 
 ## Classes and Interfaces
 
-@todo
+### Interfaces
+
+- HashClockProtocol(Protocol)
+
+### Classes
+
+- HashClock(HashClockProtocol)
 
 ## Examples
 
-@todo
+```python
+from hashclock import HashClock
+hc = HashClock()
+hc_keys = hc.setup(3)
+
+print(repr(hc))
+hc.update([*hc.state, hc_keys.pop()])
+print(repr(hc))
+
+packed = hc.pack()
+hc = HashClock.unpack(packed)
+print('verified' if hc.verify() else 'unverified')
+print(repr(hc))
+```
 
 ## Tests
 
