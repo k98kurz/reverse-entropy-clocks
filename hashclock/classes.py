@@ -46,6 +46,10 @@ class HashClock:
         """Determines if the clock can possibly receive further updates."""
         return False if len(self.state[-1]) != 32 else True
 
+    def has_terminated(self) -> bool:
+        """Determines if the clock has provably terminated."""
+        return not self.can_be_updated()
+
     def update(self, states: list[bytes]) -> HashClock:
         """Update the clock if the states verify."""
         assert type(states) in (tuple, list), \

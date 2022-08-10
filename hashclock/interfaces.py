@@ -18,6 +18,10 @@ class HashClockProtocol(Protocol):
         """Determines if the clock can possibly receive further updates."""
         ...
 
+    def has_terminated(self) -> bool:
+        """Determines if the clock has provably terminated."""
+        ...
+
     def update(self, states: list[bytes]) -> HashClockProtocol:
         """Update the clock if the states verify."""
         ...

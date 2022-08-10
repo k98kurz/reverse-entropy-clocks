@@ -35,6 +35,7 @@ class TestClasses(unittest.TestCase):
         hc1_vals = hc1.setup(1)
 
         assert hc1.can_be_updated(), 'can_be_updated() should be True after setup'
+        assert not hc1.has_terminated(), 'has_terminated() should return False after setup'
 
     def test_HashClock_update_increases_read_output(self):
         hc1 = classes.HashClock()
@@ -87,6 +88,7 @@ class TestClasses(unittest.TestCase):
         hc1.update([*hc1.state, hc1_vals.pop()])
         assert hc1.read() == 1, 'read() increments after update'
         assert not hc1.can_be_updated(), 'can_be_updated() should return False'
+        assert hc1.has_terminated(), 'has_terminated() should return True'
 
     def test_HashClock_pack_returns_bytes(self):
         hc1 = classes.HashClock()
@@ -136,9 +138,11 @@ class TestClasses(unittest.TestCase):
         hc1_keys = hc1.setup(1, root_size=32)
         assert hc1.verify()
         assert hc1.can_be_updated()
+        assert not hc1.has_terminated()
         hc1.update([*hc1.state, hc1_keys.pop()])
         assert hc1.verify()
         assert hc1.can_be_updated()
+        assert not hc1.has_terminated()
 
 if __name__ == '__main__':
     unittest.main()
