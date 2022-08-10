@@ -5,7 +5,6 @@ from secrets import token_bytes
 import struct
 
 
-
 # helper functions
 def xor(b1: bytes, b2: bytes) -> bytes:
     """XOR two equal-length byte strings together."""
@@ -19,6 +18,13 @@ def bytes_are_same(b1: bytes, b2: bytes) -> bool:
     """Timing-attack safe bytes comparison."""
     return len(b1) == len(b2) and int.from_bytes(xor(b1, b2), 'little') == 0
 
+def recursive_hash(preimage: bytes, count: int) -> bytes:
+    """Function to recursively hash a preimage."""
+    state = preimage
+    for _ in range(count):
+        state = sha256(state).digest()
+
+    return state
 
 @dataclass
 class HashClockUpdater:
@@ -30,9 +36,7 @@ class HashClockUpdater:
     @classmethod
     def setup(cls, root: bytes, max_time: int) -> HashClockUpdater:
         """Set up a new instance."""
-        state = root
-        for _ in range(max_time):
-            state = sha256(state).digest()
+        state = recursive_hash(root, max_time)
 
         return cls(root=root, uuid=state, max_time=max_time)
 
@@ -41,10 +45,7 @@ class HashClockUpdater:
         assert type(time) is int, 'time must be int <= max_time'
         assert time <= self.max_time, 'time must be int <= max_time'
 
-        state = self.root
-
-        for _ in range(self.max_time - time):
-            state = sha256(state).digest()
+        state = recursive_hash(self.root, self.max_time - time)
 
         return (time, state)
 
@@ -113,9 +114,7 @@ class HashClock:
             return self
 
         # verify the update maps back to the uuid
-        calc_state = state[1]
-        for _ in range(state[0]):
-            calc_state = sha256(calc_state).digest()
+        calc_state = recursive_hash(state[1], state[0])
 
         if bytes_are_same(calc_state, self.uuid):
             self.state = tuple(state)
@@ -127,9 +126,7 @@ class HashClock:
         if self.state is None:
             return True
 
-        calc_state = self.state[1]
-        for _ in range(self.state[0]):
-            calc_state = sha256(calc_state).digest()
+        calc_state = recursive_hash(self.state[1], self.state[0])
 
         return bytes_are_same(calc_state, self.uuid)
 
