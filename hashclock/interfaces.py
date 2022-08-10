@@ -3,10 +3,32 @@ from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
+class HashClockUpdaterProtocol(Protocol):
+    """Duck typed Protocol showing what a HashClockUpdater must do."""
+    @classmethod
+    def setup(cls, root: bytes, max_time: int) -> HashClockUpdaterProtocol:
+        """Set up a new instance."""
+        ...
+
+    def advance(self, time: int) -> tuple[int, bytes]:
+        """Create an update that advances the clock to the given time."""
+        ...
+
+    def pack(self) -> bytes:
+        """Pack the clock updater into bytes."""
+        ...
+
+    @classmethod
+    def unpack(cls, data: bytes) -> HashClockUpdaterProtocol:
+        """Unpack a clock updater from bytes."""
+        ...
+
+
+@runtime_checkable
 class HashClockProtocol(Protocol):
-    def setup(self, lock_count: int, preimage_size: int = 16) -> list[bytes]:
+    def setup(self, max_time: int, preimage_size: int = 16) -> HashClockUpdaterProtocol:
         """Set up the instance if it hasn't been setup yet and return
-            the chain of hashlock keys.
+            the updater for the clock.
         """
         ...
 
@@ -22,8 +44,8 @@ class HashClockProtocol(Protocol):
         """Determines if the clock has provably terminated."""
         ...
 
-    def update(self, states: list[bytes]) -> HashClockProtocol:
-        """Update the clock if the states verify."""
+    def update(self, state: tuple[int, bytes]) -> HashClockProtocol:
+        """Update the clock if the state verifies."""
         ...
 
     def verify(self) -> bool:

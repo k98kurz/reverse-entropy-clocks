@@ -2,6 +2,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from hashlib import sha256
 from secrets import token_bytes
+import struct
+
 
 
 # helper functions
@@ -19,91 +21,139 @@ def bytes_are_same(b1: bytes, b2: bytes) -> bool:
 
 
 @dataclass
+class HashClockUpdater:
+    """Implementation of the HashClockUpdaterProtocol."""
+    root: bytes
+    uuid: bytes
+    max_time: int
+
+    @classmethod
+    def setup(cls, root: bytes, max_time: int) -> HashClockUpdater:
+        """Set up a new instance."""
+        state = root
+        for _ in range(max_time):
+            state = sha256(state).digest()
+
+        return cls(root=root, uuid=state, max_time=max_time)
+
+    def advance(self, time: int) -> tuple[int, bytes]:
+        """Create an update that advances the clock to the given time."""
+        assert type(time) is int, 'time must be int <= max_time'
+        assert time <= self.max_time, 'time must be int <= max_time'
+
+        state = self.root
+
+        for _ in range(self.max_time - time):
+            state = sha256(state).digest()
+
+        return (time, state)
+
+    def pack(self) -> bytes:
+        """Pack the clock updater into bytes."""
+        return struct.pack(
+            f'!I{len(self.root)}s',
+            self.max_time,
+            self.root
+        )
+
+    @classmethod
+    def unpack(cls, data: bytes) -> HashClockUpdater:
+        """Unpack a clock updater from bytes."""
+        assert type(data) is bytes, 'data must be bytes with len > 6'
+        assert len(data) > 6, 'data must be bytes with len > 6'
+
+        max_time, root = struct.unpack(f'!I{len(data)-4}s', data)
+
+        return cls.setup(root, max_time)
+
+
+@dataclass
 class HashClock:
-    state: list[bytes] = field(default_factory=list)
+    """Implementation of the Reverse Entropy Clock."""
+    uuid: bytes = field(default_factory=bytes)
+    state: tuple[int, bytes] = field(default=None)
 
-    def setup(self, lock_count: int, root_size: int = 16) -> list[bytes]:
+    def setup(self, max_time: int, root_size: int = 16) -> HashClockUpdater:
         """Set up the instance if it hasn't been setup yet and return
-            the chain of hashlock keys.
+            the updater for the clock.
         """
-        assert len(self.state) == 0, 'lock has already been setup'
+        assert self.state is None, 'clock has already been setup'
 
-        root = token_bytes(root_size)
-        states = [root]
+        updater = HashClockUpdater.setup(token_bytes(root_size), max_time)
 
-        while len(states) < lock_count + 1:
-            states.append(sha256(states[-1]).digest())
+        self.uuid = updater.uuid
+        self.state = (0, self.uuid)
 
-        self.state = [states.pop()]
-
-        return states
+        return updater
 
     def read(self) -> int:
         """Read the current state of the clock."""
-        return len(self.state) - 1
+        return self.state[0] if self.state is not None else -1
 
     def can_be_updated(self) -> bool:
         """Determines if the clock can possibly receive further updates."""
-        return False if len(self.state[-1]) != 32 else True
+        return False if self.state is None or len(self.state[-1]) != 32 else True
 
     def has_terminated(self) -> bool:
         """Determines if the clock has provably terminated."""
-        return not self.can_be_updated()
+        return self.state is not None and not self.can_be_updated()
 
-    def update(self, states: list[bytes]) -> HashClock:
-        """Update the clock if the states verify."""
-        assert type(states) in (tuple, list), \
-            'states must be tuple or list of bytes'
+    def update(self, state: tuple[int, bytes]) -> HashClock:
+        """Update the clock if the state verifies."""
+        assert type(state) in (tuple, list), \
+            'states must be tuple or list of (int, bytes)'
+        assert self.state is not None, 'cannot update unsetup clock'
 
-        # ignore old updates
-        if len(states) <= len(self.state):
+        # ignore if we cannot update
+        if not self.can_be_updated():
             return self
 
-        # ignore updates that diverge from current state
-        for i, v in enumerate(self.state):
-            if not bytes_are_same(states[i], v):
-                return self
+        # ignore old updates
+        if state[0] <= self.state[0]:
+            return self
 
-        # check remaining hash locks
-        states = states[len(self.state):]
-        states.reverse()
+        # verify the update maps back to the uuid
+        calc_state = state[1]
+        for _ in range(state[0]):
+            calc_state = sha256(calc_state).digest()
 
-        while len(states):
-            lockkey = states.pop()
-            if sha256(lockkey).digest() == self.state[-1]:
-                self.state.append(lockkey)
-            else:
-                break
+        if bytes_are_same(calc_state, self.uuid):
+            self.state = tuple(state)
 
         return self
 
     def verify(self) -> bool:
         """Verifies the state."""
-        for i, v in enumerate(self.state):
-            if i > 0:
-                if not bytes_are_same(sha256(v).digest(), self.state[i-1]):
-                    return False
+        if self.state is None:
+            return True
 
-        return True
+        calc_state = self.state[1]
+        for _ in range(self.state[0]):
+            calc_state = sha256(calc_state).digest()
+
+        return bytes_are_same(calc_state, self.uuid)
 
     def pack(self) -> bytes:
         """Pack the clock down to bytes."""
-        return b''.join(self.state)
+        return struct.pack(
+            f'!I{len(self.state[1])}s',
+            self.state[0],
+            self.state[1]
+        )
 
     @classmethod
     def unpack(cls, data: bytes) -> HashClock:
         """Unpack a clock from bytes."""
-        assert type(data) in (bytes, bytearray), 'data must be bytes or bytearray'
+        assert type(data) is bytes, 'data must be bytes with len > 4'
+        assert len(data) > 4, 'data must be bytes with len > 4'
 
-        # split off every 32 bytes and save remainder
-        data = data if type(data) is bytearray else bytearray(data)
-        states = []
-        while len(data) > 32:
-            states.append(bytes(data[:32]))
-            data = data[32:]
-        states.append(bytes(data))
+        time, state = struct.unpack(f'!I{len(data)-4}s', data)
+        calc_state = state
+        for _ in range(time):
+            calc_state = sha256(calc_state).digest()
 
-        return cls(states)
+        return cls(uuid=calc_state, state=(time, state))
 
     def __repr__(self) -> str:
-        return f'{self.read()}: {self.pack().hex()}'
+        return f'time={self.read()}; uuid={self.uuid.hex()}; ' + \
+            f'state={self.state[1].hex()}; {self.has_terminated()=}'

@@ -21,12 +21,19 @@ clock has provably terminated can be determined with `hc.has_terminated()`; the
 inverse, whether a clock can possibly receive updates, can be determined with
 `hc.can_be_updated()`.
 
-The `setup(lock_count: int, root_size: int = 16) -> list[bytes]` method will set
-up the hash lock chain, set the final digest as the state, and return the rest.
-This list of bytes is then used to advance the clock by combining the state with
-a bytes value popped off the end of the list; this new list becomes the update.
-It is technically a state-based CRDT counter and can be thought of as a
-permissioned CRDT since only those who know the locks can advance the clock.
+The `setup(max_time: int, root_size: int = 16) -> list[bytes]` method will set
+up the hash lock chain, set the final digest as the state, and return a
+HashClockUpdater. This HashClockUpdater is then used to advance the clock by
+recursively hashing the root `max_time - time` times and returning a tuple of
+`(time, state)`. It is technically a state-based CRDT counter and can be thought
+of as a permissioned CRDT since only those who know the root and max_time can
+advance the clock.
+
+At some point, a VectorHashClock class will be created that will set up vector
+clocks using the HashClock mechanism underneath. Additionally, a MapHashClock
+class will extend the VectorHashClock idea to not require all node IDs to be
+included in the setup; i.e. new nodes will be able to join the MapHashClock
+after setup by issuing an update referencing the clock's uuid.
 
 ## Status
 
@@ -34,6 +41,9 @@ permissioned CRDT since only those who know the locks can advance the clock.
 - [x] Tests
 - [x] Interfaces
 - [x] Classes
+- [x] Optimization refactor
+- [ ] VectorHashClock
+- [ ] MapHashClock
 
 ## Installation
 
@@ -48,22 +58,25 @@ published as a package.
 ### Interfaces
 
 - HashClockProtocol(Protocol)
+- HashClockUpdaterProtocol(Protocol)
 
 ### Classes
 
 - HashClock(HashClockProtocol)
+- HashClockUpdater(HashClockUpdaterProtocol)
 
 ## Examples
 
 ```python
 from hashclock import HashClock
 hc = HashClock()
-hc_keys = hc.setup(3)
+hcu = hc.setup(2)
 
 print(hc.read())
 print(repr(hc))
-hc = hc.update([*hc.state, hc_keys.pop()])
-print(hc.read())
+hc = hc.update(hcu.advance(1))
+print(repr(hc))
+hc = hc.update(hcu.advance(2))
 print(repr(hc))
 
 packed = hc.pack()
