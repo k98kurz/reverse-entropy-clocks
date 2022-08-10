@@ -114,7 +114,11 @@ class TestClasses(unittest.TestCase):
 
     def test_HashClock_verify_returns_True_for_valid_state(self):
         hc1 = classes.HashClock()
+        assert hc1.verify(), 'verify() should return True for valid state'
+
         hc1_vals = hc1.setup(1)
+        assert hc1.verify(), 'verify() should return True for valid state'
+
         hc1.update([*hc1.state, hc1_vals.pop()])
 
         assert hc1.verify(), 'verify() should return True for valid state'
