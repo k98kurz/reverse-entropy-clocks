@@ -60,3 +60,55 @@ class HashClockProtocol(Protocol):
     def unpack(cls, data: bytes) -> HashClockProtocol:
         """Unpack a clock from bytes."""
         ...
+
+
+@runtime_checkable
+class VectorHashClockProtocol(Protocol):
+    def setup(self, node_ids: list[bytes] = None) -> VectorHashClockProtocol:
+        """Set up the vector clock."""
+        ...
+
+    @classmethod
+    def create(cls, uuid: bytes, node_ids: list[bytes]) -> VectorHashClockProtocol:
+        """Create a vector clock."""
+        ...
+
+    def read(self) -> dict:
+        """Read the clock as dict mapping node_id to tuple[int, bytes]."""
+        ...
+
+    def advance(self, node_id: bytes, state: tuple[int, bytes]) -> dict:
+        """Create an update to advance the clock."""
+        ...
+
+    def update(self, state: dict) -> VectorHashClockProtocol:
+        """Update the clock using a dict mapping node_id to tuple[int, bytes]."""
+        ...
+
+    def verify(self) -> bool:
+        """Verify that all underlying HashClocks are valid."""
+        ...
+
+    @staticmethod
+    def happens_before(ts1: dict, ts2: dict) -> bool:
+        """Determine if ts1 happens before ts2."""
+        ...
+
+    @staticmethod
+    def are_incomparable(ts1: dict, ts2: dict) -> bool:
+        """Determine if ts1 and ts2 are incomparable."""
+        ...
+
+    @staticmethod
+    def are_concurrent(ts1: dict, ts2: dict) -> bool:
+        """Determine if ts1 and ts2 are concurrent."""
+        ...
+
+    def pack(self) -> bytes:
+        """Pack the clock into bytes."""
+        ...
+
+    @classmethod
+    def unpack(cls, data: bytes) -> VectorHashClockProtocol:
+        """Unpack a clock from bytes."""
+        ...

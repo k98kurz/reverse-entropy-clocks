@@ -3,6 +3,8 @@ from secrets import token_bytes
 from context import classes, interfaces
 import unittest
 
+from hashclock.classes import HashClock
+
 
 class TestClasses(unittest.TestCase):
     """Test suite for classes."""
@@ -227,6 +229,238 @@ class TestClasses(unittest.TestCase):
         assert hcu.uuid == unpacked.uuid
         assert hcu.root == unpacked.root
         assert hcu.max_time == unpacked.max_time
+
+    # VectorHashClock tess
+    def test_VectorHashClock_implements_VectorHashClockProtocol(self):
+        assert issubclass(classes.VectorHashClock, interfaces.VectorHashClockProtocol), \
+            'VectorHashClock must implement VectorHashClockProtocol'
+
+    def test_VectorHashClock_initializes_empty(self):
+        vhc = classes.VectorHashClock()
+
+        assert vhc.node_ids is None
+        assert vhc.hash_clocks == {}
+
+    def test_VectorHashClock_setup_sets_node_ids_and_unsetup_hash_clocks(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+
+        assert vhc.node_ids == node_ids
+        assert len(vhc.hash_clocks.keys()) == len(node_ids)
+
+        for id in vhc.hash_clocks:
+            assert id in node_ids
+            assert isinstance(vhc.hash_clocks[id], classes.HashClock)
+            assert not vhc.hash_clocks[id].can_be_updated()
+            assert not vhc.hash_clocks[id].has_terminated()
+
+    def test_VectorHashClock_read_returns_all_negative_ones_after_setup(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+
+        ts = vhc.read()
+        for id in ts:
+            assert id in node_ids or id == b'uuid'
+            if id != b'uuid':
+                assert type(ts[id]) is tuple, 'each node\'s ts should be tuple[int, bytes|None]'
+                assert ts[id][0] == -1, 'each time must be -1'
+                assert ts[id][1] is None, 'each state must be empty'
+            if id == b'uuid':
+                assert type(ts[id]) is bytes, 'uuid must be bytes'
+                assert ts[id] == vhc.uuid
+
+    def test_VectorHashClock_advance_returns_dict_with_proper_form(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+        hc = vhc.hash_clocks[node_ids[0]]
+        hcu = hc.setup(3)
+        update = vhc.advance(node_ids[0], hcu.advance(1))
+
+        assert type(update) is dict, 'advance(node_id, update) must return dict'
+        assert node_ids[0] in update, 'advance() dict must map node_id to tuple[int, bytes'
+        assert b'uuid' in update, 'advance() dict must include uuid'
+        assert type(update[b'uuid']) is bytes, 'advance() dict[uuid] must be bytes'
+        assert type(update[node_ids[0]]) is tuple, \
+            'advance() dict must map node_id to tuple[int, bytes'
+        assert type(update[node_ids[0]][0]) is int, \
+            'advance() dict must map node_id to tuple[int, bytes'
+        assert type(update[node_ids[0]][1]) is bytes, \
+            'advance() dict must map node_id to tuple[int, bytes'
+
+    def test_VectorHashClock_update_accepts_advance_output_and_advances_clock(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+        hc = classes.HashClock()
+        hcu = hc.setup(3)
+        vhc.hash_clocks[node_ids[0]] = hc
+        update = vhc.advance(node_ids[0], hcu.advance(1))
+
+        before = vhc.read()
+        updated = vhc.update(update)
+        after = vhc.read()
+
+        assert isinstance(updated, classes.VectorHashClock), \
+            'vhc.update() must return a VectorHashClock'
+        assert updated is vhc, 'vhc.update() must return vhc (monad pattern)'
+        assert before != after, 'read() output should change after update'
+
+        diff = 0
+        for id in node_ids:
+            diff += 1 if before[id] != after[id] else 0
+        assert diff == 1, 'read() output should change by exactly 1 after update'
+
+    def test_VectorHashClock_can_update_with_initial_states_of_HashClocks(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+        hc1 = classes.HashClock()
+        hc2 = classes.HashClock()
+        hcu1 = hc1.setup(2)
+        hcu2 = hc2.setup(2)
+
+        ts1 = vhc.read()
+        update = vhc.advance(node_ids[0], hcu1.advance(0))
+        vhc.update(update)
+        ts2 = vhc.read()
+        update = vhc.advance(node_ids[1], hcu2.advance(0))
+        vhc.update(update)
+        ts3 = vhc.read()
+
+        assert vhc.happens_before(ts1, ts2), 'time moves forward'
+        assert vhc.happens_before(ts2, ts3), 'time moves forward'
+        assert vhc.happens_before(ts1, ts3), 'time moves forward transitively'
+
+    def test_VectorHashClock_verify_returns_True_if_all_clocks_valid(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+
+        assert vhc.verify(), 'empty clock should verify'
+
+        hc = classes.HashClock()
+        hcu = hc.setup(3)
+        vhc.hash_clocks[node_ids[0]] = hc
+        update = vhc.advance(node_ids[0], hcu.advance(1))
+
+        assert vhc.verify(), 'clock should verify if all underlying clocks verify'
+
+        hc.state = [hc.state[0], hc.state[1] + b'1']
+
+        assert not vhc.verify(), 'clock should not verify if underlying clock fails verification'
+
+    def test_VectorHashClock_happens_before_returns_correct_bool(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+        hc = classes.HashClock()
+        hcu = hc.setup(3)
+        vhc.hash_clocks[node_ids[0]] = hc
+        update = vhc.advance(node_ids[0], hcu.advance(1))
+
+        before = vhc.read()
+        updated = vhc.update(update)
+        after = vhc.read()
+
+        assert type(vhc.happens_before(before, after)) is bool, \
+            'happens_before() must return bool'
+        assert type(vhc.happens_before(after, before)) is bool, \
+            'happens_before() must return bool'
+        assert classes.VectorHashClock.happens_before(before, after), \
+            'happens_before(before, after) must return True for valid timestamps'
+        assert not classes.VectorHashClock.happens_before(after, before), \
+            'happens_before(before, after) must return False for valid timestamps'
+        assert not classes.VectorHashClock.happens_before(after, after), \
+            'happens_before(after, after) must return False for valid timestamps'
+
+    def test_VectorHashClock_are_incomparable_returns_correct_bool(self):
+        node_ids = [b'123', b'321']
+        vhc1 = classes.VectorHashClock().setup(node_ids)
+        vhc2 = classes.VectorHashClock().setup([*node_ids, b'abc'])
+        hc = classes.HashClock()
+        hcu = hc.setup(3)
+        vhc1.hash_clocks[node_ids[0]] = hc
+        update = vhc1.advance(node_ids[0], hcu.advance(1))
+
+        ts1 = vhc1.read()
+        ts2 = vhc2.read()
+
+        assert type(vhc1.are_incomparable(ts1, ts2)) is bool, \
+            'are_incomparable() must return bool'
+        assert classes.VectorHashClock.are_incomparable(ts1, ts2), \
+            'are_incomparable() must return True for incomparable timestamps'
+        assert not vhc1.are_incomparable(ts1, ts1), \
+            'are_incomparable() must return False for comparable timestamps'
+        assert vhc1.are_incomparable(ts1, {**ts1, b'diverge': (-1, None)}), \
+            'are_incomparable() must return True for incomparable timestamps'
+
+        vhc1.update(update)
+        ts2 = vhc1.read()
+
+        assert not vhc2.are_incomparable(ts1, ts2), \
+            'are_incomparable() must return False for comparable timestamps'
+
+        vhc2 = classes.VectorHashClock(vhc1.uuid).setup(node_ids)
+        hc2 = classes.HashClock()
+        hcu2 = hc2.setup(2)
+        vhc2.hash_clocks[node_ids[1]] = hc2
+        update2 = vhc2.advance(node_ids[1], hcu2.advance(1))
+        vhc2.update(update2)
+        ts2 = vhc2.read()
+
+        assert vhc2.are_incomparable(ts1, ts2), 'timestamps should be incomparable'
+
+    def test_VectorHashClock_are_concurrent_returns_correct_bool(self):
+        node_ids = [b'123', b'321']
+        vhc1 = classes.VectorHashClock().setup(node_ids)
+        hc1 = classes.HashClock()
+        hcu1 = hc1.setup(2)
+        vhc1.hash_clocks[node_ids[0]] = hc1
+        ts1 = vhc1.read()
+        update1 = vhc1.advance(node_ids[0], hcu1.advance(1))
+        vhc1.update(update1)
+        ts2 = vhc1.read()
+
+        assert type(classes.VectorHashClock.are_concurrent(ts1, ts1)) is bool, \
+            'are_concurrent() must return a bool'
+        assert vhc1.are_concurrent(ts1, ts1), \
+            'are_concurrent() must return True for concurrent timestamps'
+        assert not vhc1.are_concurrent(ts1, ts2), \
+            'are_concurrent() must return False for sequential timestamps'
+        assert not vhc1.are_concurrent(ts2, ts1), \
+            'are_concurrent() must return False for sequential timestamps'
+
+    def test_VectorHashClock_pack_returns_bytes_that_change_with_state(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+        hc = classes.HashClock()
+        hcu = hc.setup(2)
+        vhc.hash_clocks[node_ids[0]] = hc
+        packed1 = vhc.pack()
+        packed2 = vhc.pack()
+
+        assert type(packed1) is bytes, 'pack() must return bytes'
+        assert packed1 == packed2, \
+            'pack() output must not change without underlying state change'
+
+        update = vhc.advance(node_ids[0], hcu.advance(1))
+        vhc.update(update)
+        packed2 = vhc.pack()
+
+        assert type(packed2) is bytes, 'pack() must return bytes'
+        assert packed1 != packed2, \
+            'pack() output must change with underlying state change'
+
+    def test_VectorHashClock_unpack_returns_valid_instance(self):
+        node_ids = [b'123', b'321']
+        vhc = classes.VectorHashClock().setup(node_ids)
+        hc = classes.HashClock()
+        hcu = hc.setup(2)
+        vhc.hash_clocks[node_ids[0]] = hc
+        packed = vhc.pack()
+        unpacked = classes.VectorHashClock.unpack(packed)
+
+        assert isinstance(unpacked, classes.VectorHashClock), \
+            'unpack() must return a VectorHashClock'
+        assert unpacked.uuid == vhc.uuid, 'unpacked must have same uuid as source VHC'
+        assert vhc.are_concurrent(vhc.read(), unpacked.read()), \
+            'timestamps must be concurrent between unpacked and source VHC'
 
 
 if __name__ == '__main__':

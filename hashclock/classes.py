@@ -1,8 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from hashlib import sha256
+import json
 from secrets import token_bytes
 import struct
+from uuid import uuid1
 
 
 # helper functions
@@ -154,3 +156,195 @@ class HashClock:
     def __repr__(self) -> str:
         return f'time={self.read()}; uuid={self.uuid.hex()}; ' + \
             f'state={self.state[1].hex()}; {self.has_terminated()=}'
+
+
+@dataclass
+class VectorHashClock:
+    uuid: bytes = field(default_factory=lambda: uuid1().bytes)
+    node_ids: list[bytes] = field(default=None)
+    hash_clocks: dict = field(default_factory=dict)
+
+    def setup(self, node_ids: list[bytes] = None) -> VectorHashClock:
+        """Set up the vector clock."""
+        assert type(node_ids) is list or node_ids is None, \
+            'node_ids must be list of bytes or None'
+        if node_ids is not None:
+            for nid in node_ids:
+                assert type(nid) is bytes, 'node_ids must be list of bytes or None'
+        assert self.hash_clocks == {}, 'clock has already been setup'
+
+        if node_ids is not None:
+            self.node_ids = [*node_ids]
+
+        for nid in self.node_ids:
+            self.hash_clocks[nid] = HashClock()
+
+        return self
+
+    @classmethod
+    def create(cls, uuid: bytes, node_ids: list[bytes]) -> VectorHashClock:
+        """Create a vector clock."""
+        assert type(uuid) is bytes, 'uuid must be bytes'
+        assert type(node_ids) is list, 'node_ids must be list of bytes'
+        for nid in node_ids:
+            assert type(nid) is bytes, 'node_ids must be list of bytes'
+
+        return cls(uuid, node_ids).setup()
+
+    def read(self) -> dict:
+        """Read the clock as dict mapping node_id to tuple[int, bytes]."""
+        result = {b'uuid': self.uuid}
+
+        for id in self.node_ids:
+            result[id] = self.hash_clocks[id].state
+            result[id] = (-1, None) if result[id] is None else result[id]
+
+        return result
+
+    def advance(self, node_id: bytes, state: tuple[int, bytes]) -> dict:
+        """Create an update to advance the clock."""
+        assert self.hash_clocks != {}, 'cannot advance clock that has not been setup'
+        assert type(node_id) is bytes, 'node_id must be bytes'
+        assert node_id in self.node_ids, 'node_id not part of this clock'
+
+        if self.hash_clocks[node_id].state is None:
+            uuid = recursive_hash(state[1], state[0])
+            self.hash_clocks[node_id].uuid = uuid
+            self.hash_clocks[node_id].state = state
+
+        update = {b'uuid': self.uuid}
+        update[node_id] = state
+
+        return update
+
+    def update(self, state: dict) -> VectorHashClock:
+        """Update the clock using a dict mapping node_id to tuple[int, bytes]."""
+        assert type(state) is dict, 'state must be a dict mapping node_id to tuple[int, bytes]'
+        assert b'uuid' in state, 'state must include uuid of clock to update'
+        assert bytes_are_same(state[b'uuid'], self.uuid), 'uuid of update must match clock uuid'
+
+        for id in state:
+            assert id in self.node_ids or id == b'uuid', 'state includes invalid node_id'
+
+        for id in state:
+            if id != b'uuid':
+                if self.hash_clocks[id].state is None:
+                    uuid = recursive_hash(state[id][1], state[id][0])
+                    self.hash_clocks[id].uuid = uuid
+                    self.hash_clocks[id].state = (0, uuid)
+
+                self.hash_clocks[id].update(state[id])
+
+        return self
+
+    def verify(self) -> bool:
+        """Verify that all underlying HashClocks are valid."""
+        valid = True
+
+        for id in self.node_ids:
+            valid = valid and self.hash_clocks[id].verify()
+
+        return valid
+
+    @staticmethod
+    def happens_before(ts1: dict, ts2: dict) -> bool:
+        """Determine if ts1 happens before ts2."""
+        assert type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]'
+        assert type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]'
+        assert b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have matching uuids'
+        assert bytes_are_same(ts1[b'uuid'], ts2[b'uuid']), 'ts1 and ts2 must have matching uuids'
+
+        for id in ts1:
+            assert id in ts2, 'incomparable timestamps'
+        for id in ts2:
+            assert id in ts1, 'incomparable timestamps'
+
+        reverse_causality = False
+        at_least_one_earlier = False
+
+        for id in ts1:
+            if ts1[id][0] > ts2[id][0]:
+                reverse_causality = True
+            if ts1[id][0] < ts2[id][0]:
+                at_least_one_earlier = True
+
+        return at_least_one_earlier and not reverse_causality
+
+    @staticmethod
+    def are_incomparable(ts1: dict, ts2: dict) -> bool:
+        """Determine if ts1 and ts2 are incomparable."""
+        assert type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]'
+        assert type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]'
+        assert b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have both have uuids'
+
+        if not bytes_are_same(ts1[b'uuid'], ts2[b'uuid']):
+            return True
+
+        incomparable = False
+        at_least_one_before = False
+        at_least_one_after = False
+
+        for id in ts1:
+            if id not in ts2:
+                incomparable = True
+
+        for id in ts2:
+            if id not in ts1:
+                incomparable = True
+
+        if incomparable:
+            return True
+
+        for id in ts1:
+            if id != b'uuid':
+                if ts1[id][0] < ts2[id][0]:
+                    at_least_one_before = True
+                if ts1[id][0] > ts2[id][0]:
+                    at_least_one_after = True
+
+        return at_least_one_after and at_least_one_before
+
+    @staticmethod
+    def are_concurrent(ts1: dict, ts2: dict) -> bool:
+        """Determine if ts1 and ts2 are concurrent."""
+        assert not VectorHashClock.are_incomparable(ts1, ts2), \
+            'incomparable timestamps cannot be compared for concurrency'
+
+        return not VectorHashClock.happens_before(ts1, ts2) and \
+            not VectorHashClock.happens_before(ts2, ts1)
+
+    def pack(self) -> bytes:
+        """Pack the clock into bytes."""
+        jsonified = {'uuid': self.uuid.hex()}
+
+        for id in self.node_ids:
+            if self.hash_clocks[id].state is not None:
+                jsonified[id.hex()] = self.hash_clocks[id].pack().hex()
+            else:
+                jsonified[id.hex()] = None
+
+        return bytes(json.dumps(jsonified, sort_keys=True, separators=(',', ':')), 'utf-8')
+
+    @classmethod
+    def unpack(cls, data: bytes) -> VectorHashClock:
+        """Unpack a clock from bytes."""
+        assert type(data) is bytes, 'data must be bytes'
+
+        data = json.loads(str(data, 'utf-8'))
+        uuid = bytes.fromhex(data['uuid'])
+        hash_clocks = {}
+
+        for key in data:
+            if key == 'uuid':
+                continue
+
+            node_id = bytes.fromhex(key)
+
+            if data[key] is None:
+                hash_clocks[node_id] = HashClock()
+            else:
+                hash_clocks[node_id] = HashClock.unpack(bytes.fromhex(data[key]))
+
+        node_ids = hash_clocks.keys()
+
+        return cls(uuid, node_ids, hash_clocks)
