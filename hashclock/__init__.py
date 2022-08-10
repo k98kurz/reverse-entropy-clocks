@@ -1,0 +1,1 @@
+from hashclock.classes import HashClock

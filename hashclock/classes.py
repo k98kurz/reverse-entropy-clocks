@@ -100,3 +100,6 @@ class HashClock:
         states.append(bytes(data))
 
         return cls(states)
+
+    def __repr__(self) -> str:
+        return f'{self.read()}: {self.pack().hex()}'
