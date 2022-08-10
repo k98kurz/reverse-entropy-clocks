@@ -14,17 +14,17 @@ class TestClasses(unittest.TestCase):
         assert issubclass(classes.HashClock, interfaces.HashClockProtocol), \
             'HashClock must implement HashClockProtocol'
 
-    def test_HashClock_setup_creates_random_preimage(self):
+    def test_HashClock_setup_creates_random_root(self):
         hc1 = classes.HashClock()
         hc1_vals = hc1.setup(1)
         hc2 = classes.HashClock()
         hc2_vals = hc2.setup(1)
 
-        assert type(hc1_vals[0]) is bytes, 'preimage should be bytes'
-        assert type(hc2_vals[0]) is bytes, 'preimage should be bytes'
-        assert len(hc1_vals[0]) == 16, 'preimage should be 16 bytes'
-        assert len(hc2_vals[0]) == 16, 'preimage should be 16 bytes'
-        assert hc1_vals[0] != hc2_vals[0], 'preimages should be uncorrelated'
+        assert type(hc1_vals[0]) is bytes, 'root should be bytes'
+        assert type(hc2_vals[0]) is bytes, 'root should be bytes'
+        assert len(hc1_vals[0]) == 16, 'root should be 16 bytes'
+        assert len(hc2_vals[0]) == 16, 'root should be 16 bytes'
+        assert hc1_vals[0] != hc2_vals[0], 'locks should be uncorrelated'
 
         assert hc1.read() == 0, 'clock should be at time 0 after setup'
         assert hc1.state[0] == sha256(hc1_vals[-1]).digest(), \
@@ -131,6 +131,14 @@ class TestClasses(unittest.TestCase):
 
         assert not hc1.verify(), 'verify() should return False for invalid state'
 
+    def test_HashClock_can_be_updated_returns_True_for_terminated_clock_with_setup_root_32(self):
+        hc1 = classes.HashClock()
+        hc1_keys = hc1.setup(1, root_size=32)
+        assert hc1.verify()
+        assert hc1.can_be_updated()
+        hc1.update([*hc1.state, hc1_keys.pop()])
+        assert hc1.verify()
+        assert hc1.can_be_updated()
 
 if __name__ == '__main__':
     unittest.main()
