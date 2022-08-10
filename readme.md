@@ -38,17 +38,7 @@ permissioned CRDT since only those who know the locks can advance the clock.
 ## Installation
 
 Currently, this project is still in development, so the best way to install is
-to clone the repo and then run the following from within the root directory
-(assuming a Linix terminal):
-
-```
-python -m venv venv/
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-On Windows, you may have to run `source venv/Scripts/activate` instead
-of `source venv/bin/activate`.
+to clone the repo. There are no dependencies.
 
 These instructions will change once development is complete and the module is
 published as a package.
