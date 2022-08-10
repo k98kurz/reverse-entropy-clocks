@@ -1,32 +1,11 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from hashlib import sha256
-import json
+from hashclock.misc import bytes_are_same, recursive_hash
 from secrets import token_bytes
-import struct
 from uuid import uuid1
+import json
+import struct
 
-
-# helper functions
-def xor(b1: bytes, b2: bytes) -> bytes:
-    """XOR two equal-length byte strings together."""
-    b3 = bytearray()
-    for i in range(len(b1)):
-        b3.append(b1[i] ^ b2[i])
-
-    return bytes(b3)
-
-def bytes_are_same(b1: bytes, b2: bytes) -> bool:
-    """Timing-attack safe bytes comparison."""
-    return len(b1) == len(b2) and int.from_bytes(xor(b1, b2), 'little') == 0
-
-def recursive_hash(preimage: bytes, count: int) -> bytes:
-    """Function to recursively hash a preimage."""
-    state = preimage
-    for _ in range(count):
-        state = sha256(state).digest()
-
-    return state
 
 @dataclass
 class HashClockUpdater:
@@ -147,9 +126,7 @@ class HashClock:
         assert len(data) > 4, 'data must be bytes with len > 4'
 
         time, state = struct.unpack(f'!I{len(data)-4}s', data)
-        calc_state = state
-        for _ in range(time):
-            calc_state = sha256(calc_state).digest()
+        calc_state = recursive_hash(state, time)
 
         return cls(uuid=calc_state, state=(time, state))
 
