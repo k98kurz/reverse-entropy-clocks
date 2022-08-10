@@ -29,11 +29,12 @@ recursively hashing the root `max_time - time` times and returning a tuple of
 of as a permissioned CRDT since only those who know the root and max_time can
 advance the clock.
 
-At some point, a VectorHashClock class will be created that will set up vector
-clocks using the HashClock mechanism underneath. Additionally, a MapHashClock
-class will extend the VectorHashClock idea to not require all node IDs to be
-included in the setup; i.e. new nodes will be able to join the MapHashClock
-after setup by issuing an update referencing the clock's uuid.
+The VectorHashClock class can be used to create vector clocks using the
+HashClock mechanism underneath. Additionally, a MapHashClock class will extend
+the VectorHashClock idea to not require all node IDs to be included in the
+setup; i.e. new nodes will be able to join the MapHashClock after setup by
+issuing an update referencing the clock's uuid, the node id, and the node's
+HashLock state tuple.
 
 ## Status
 
@@ -42,7 +43,7 @@ after setup by issuing an update referencing the clock's uuid.
 - [x] Interfaces
 - [x] Classes
 - [x] Optimization refactor
-- [ ] VectorHashClock
+- [x] VectorHashClock
 - [ ] MapHashClock
 
 ## Installation
@@ -67,6 +68,9 @@ published as a package.
 
 ## Examples
 
+
+### HashClock and HashClockUpdater
+
 ```python
 from hashclock import HashClock
 hc = HashClock()
@@ -83,6 +87,47 @@ packed = hc.pack()
 hc = HashClock.unpack(packed)
 print('verified' if hc.verify() else 'unverified')
 print(repr(hc))
+```
+
+### VectorHashClock
+
+```python
+from hashclock import HashClock, VectorHashClock
+from hashclock.misc import hexify
+node_ids = [b'node0', b'node1']
+vhc0 = VectorHashClock().setup(node_ids)
+hc0, hc1 = HashClock(), HashClock()
+hcu0, hcu1 = hc0.setup(1), hc1.setup(3)
+
+# initial timestamp where both are time=-1
+tsneg1 = vhc0.read()
+print(hexify(tsneg1))
+
+# setup each HashClock at initial state
+vhc0 = vhc0.update(vhc0.advance(node_ids[0], hcu0.advance(0)))
+vhc0 = vhc0.update(vhc0.advance(node_ids[1], hcu1.advance(0)))
+
+# next timestamp where both are time=0
+ts0 = vhc0.read()
+print(hexify(ts0))
+
+# advance the clocks separately
+update0 = vhc0.advance(node_ids[0], hcu0.advance(1))
+update1 = vhc0.advance(node_ids[1], hcu1.advance(1))
+packed = vhc0.pack()
+vhc1 = VectorHashClock.unpack(packed)
+
+vhc0 = vhc0.update(update0)
+vhc1 = vhc1.update(update1)
+
+print(hexify(vhc0.read()))
+print(hexify(vhc1.read()))
+
+# converge by swapping updates
+vhc1 = vhc1.update(update0)
+vhc0 = vhc0.update(update1)
+print(hexify(vhc0.read()))
+print(hexify(vhc1.read()))
 ```
 
 ## Tests
