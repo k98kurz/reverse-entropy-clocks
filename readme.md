@@ -1,8 +1,11 @@
 # Reverse Entropy Clock
 
-This module uses sha256 to implement a reverse entropy logical clock; i.e. a
-hash lock clock. This is a generalization of the hashlock used in Bitcoin UTXO
-locking scripts and logical clocks as invented by Leslie Lamport.
+This module uses sha256 to implement reverse entropy logical clocks; i.e. hash
+lock clocks. This is a generalization of the hashlock used in Bitcoin UTXO
+locking scripts and logical clocks as invented by Leslie Lamport. A given hash
+clock can only be updated by the node that created it or any nodes with which it
+shares the root and max_time values, and it can be used in a distributed system
+to order events.
 
 ## Overview
 
@@ -34,7 +37,9 @@ HashClock mechanism underneath. Additionally, a MapHashClock class will extend
 the VectorHashClock idea to not require all node IDs to be included in the
 setup; i.e. new nodes will be able to join the MapHashClock after setup by
 issuing an update referencing the clock's uuid, the node id, and the node's
-HashLock state tuple.
+HashLock state tuple. A further optimization will be created in a ChainHashClock
+class to implement the chain clock as described by Agarwal and Garg in their
+paper "Efficient Dependency Tracking for Relevant Events in Concurrent Systems".
 
 ## Status
 
@@ -44,7 +49,8 @@ HashLock state tuple.
 - [x] Classes
 - [x] Optimization refactor
 - [x] VectorHashClock
-- [ ] MapHashClock
+- [ ] HashClock
+- [ ] ChainHashClock
 
 ## Installation
 
@@ -60,11 +66,13 @@ published as a package.
 
 - HashClockProtocol(Protocol)
 - HashClockUpdaterProtocol(Protocol)
+- VectorHashClockProtocol(Protocol)
 
 ### Classes
 
 - HashClock(HashClockProtocol)
 - HashClockUpdater(HashClockUpdaterProtocol)
+- VectorHashClock(VectorHashClockProtocol)
 
 ## Examples
 
