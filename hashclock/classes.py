@@ -94,10 +94,10 @@ class HashClock:
         if state[0] <= self.state[0]:
             return self
 
-        # verify the update maps back to the uuid
-        calc_state = recursive_hash(state[1], state[0])
+        # verify the update maps back to the most recent state
+        calc_state = recursive_hash(state[1], state[0] - self.state[0])
 
-        if bytes_are_same(calc_state, self.uuid):
+        if bytes_are_same(calc_state, self.state[1]):
             self.state = tuple(state)
 
         return self
