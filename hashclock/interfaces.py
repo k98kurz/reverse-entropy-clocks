@@ -4,7 +4,7 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class HashClockProtocol(Protocol):
-    def setup(self, lock_count: int, preimage_size: int = 16) -> tuple[bytes]:
+    def setup(self, lock_count: int, preimage_size: int = 16) -> list[bytes]:
         """Set up the instance if it hasn't been setup yet and return
             the chain of hashlock keys.
         """
