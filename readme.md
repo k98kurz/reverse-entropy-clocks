@@ -12,7 +12,7 @@ to order events.
 The idea is that a message digest can form a lock that is opened by the preimage
 key. These can be chained by using digests as preimages for the next digest.
 This can be used to create a logical clock where the final digest becomes the
-lock state; each next preimage released is verified and added to the state; the
+clock state; each next preimage released is verified and added to the state; the
 time of the clock is the number of state items minus 1. Thus, as causally prior
 states are revealed, the timer increases; hence, it is a Reverse Entropy Clock
 (aka HashClock).
@@ -24,8 +24,8 @@ clock has provably terminated can be determined with `hc.has_terminated()`; the
 inverse, whether a clock can possibly receive updates, can be determined with
 `hc.can_be_updated()`.
 
-The `setup(max_time: int, root_size: int = 16) -> list[bytes]` method will set
-up the hash lock chain, set the final digest as the state, and return a
+The `setup(max_time: int, root_size: int = 16) -> HashClockUpdater` method will
+set up the hash lock chain, set the final digest as the state, and return a
 HashClockUpdater. This HashClockUpdater is then used to advance the clock by
 recursively hashing the root `max_time - time` times and returning a tuple of
 `(time, state)`. It is technically a state-based CRDT counter and can be thought
@@ -49,7 +49,7 @@ paper "Efficient Dependency Tracking for Relevant Events in Concurrent Systems".
 - [x] Classes
 - [x] Optimization refactor
 - [x] VectorHashClock
-- [ ] HashClock
+- [ ] MapHashClock
 - [ ] ChainHashClock
 
 ## Installation
@@ -75,7 +75,6 @@ published as a package.
 - VectorHashClock(VectorHashClockProtocol)
 
 ## Examples
-
 
 ### HashClock and HashClockUpdater
 
@@ -143,13 +142,12 @@ print(hexify(vhc1.read()))
 Open a terminal in the root directory and run the following:
 
 ```
-cd tests/
-python -m unittest
+python tests/test_classes.py
 ```
 
 The tests are the interface contract that the code follows. Examples of intended
-behaviors are contained in that short file. Reading through them may be helpful
-when reasoning about the clock mechanism.
+behaviors are contained in that file. Reading through them may be helpful when
+reasoning about the clock mechanism.
 
 ## Bugs
 
