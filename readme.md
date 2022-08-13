@@ -135,6 +135,9 @@ vhc1 = vhc1.update(update0)
 vhc0 = vhc0.update(update1)
 print(hexify(vhc0.read()))
 print(hexify(vhc1.read()))
+
+for c in vhc0.hash_clocks:
+    print(repr(vhc0.hash_clocks[c]))
 ```
 
 ## Tests
