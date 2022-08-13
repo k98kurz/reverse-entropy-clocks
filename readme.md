@@ -127,8 +127,11 @@ vhc1 = VectorHashClock.unpack(packed)
 vhc0 = vhc0.update(update0)
 vhc1 = vhc1.update(update1)
 
-print(hexify(vhc0.read()))
-print(hexify(vhc1.read()))
+ts0, ts1 = vhc0.read(), vhc1.read()
+
+print(hexify(ts0))
+print(hexify(ts1))
+print(f'{VectorHashClock.are_concurrent(ts0, ts1)=}')
 
 # converge by swapping updates
 vhc1 = vhc1.update(update0)
@@ -139,6 +142,13 @@ print(hexify(vhc1.read()))
 for c in vhc0.hash_clocks:
     print(repr(vhc0.hash_clocks[c]))
 ```
+
+Note: in theory, an application should advance its own clock after receiving
+updates for other clocks in the vector; each receipt of a message that updates
+one of the clocks should represent a causal happens-before relationship to any
+updates that occur after. However, allowing the clocks to tick independently may
+be useful for some applications where synchronization/desynchronization levels
+need to be tracked and managed.
 
 ## Tests
 
