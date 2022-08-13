@@ -74,7 +74,7 @@ class HashClock:
 
     def can_be_updated(self) -> bool:
         """Determines if the clock can possibly receive further updates."""
-        return False if self.state is None or len(self.state[-1]) != 32 else True
+        return not (self.state is None or len(self.state[-1]) != 32)
 
     def has_terminated(self) -> bool:
         """Determines if the clock has provably terminated."""
