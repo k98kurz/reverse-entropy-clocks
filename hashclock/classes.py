@@ -226,15 +226,8 @@ class VectorHashClock:
     @staticmethod
     def happens_before(ts1: dict, ts2: dict) -> bool:
         """Determine if ts1 happens before ts2."""
-        assert type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]'
-        assert type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]'
-        assert b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have matching uuids'
-        assert bytes_are_same(ts1[b'uuid'], ts2[b'uuid']), 'ts1 and ts2 must have matching uuids'
-
-        for id in ts1:
-            assert id in ts2, 'incomparable timestamps'
-        for id in ts2:
-            assert id in ts1, 'incomparable timestamps'
+        assert not VectorHashClock.are_incomparable(ts1, ts2), \
+            'incomparable timestamps cannot be compared for happens-before relation'
 
         reverse_causality = False
         at_least_one_earlier = False
@@ -258,8 +251,6 @@ class VectorHashClock:
             return True
 
         incomparable = False
-        at_least_one_before = False
-        at_least_one_after = False
 
         for id in ts1:
             if id not in ts2:
@@ -269,17 +260,7 @@ class VectorHashClock:
             if id not in ts1:
                 incomparable = True
 
-        if incomparable:
-            return True
-
-        for id in ts1:
-            if id != b'uuid':
-                if ts1[id][0] < ts2[id][0]:
-                    at_least_one_before = True
-                if ts1[id][0] > ts2[id][0]:
-                    at_least_one_after = True
-
-        return at_least_one_after and at_least_one_before
+        return incomparable
 
     @staticmethod
     def are_concurrent(ts1: dict, ts2: dict) -> bool:

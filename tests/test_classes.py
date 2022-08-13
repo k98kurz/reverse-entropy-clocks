@@ -404,7 +404,8 @@ class TestClasses(unittest.TestCase):
         vhc2.update(update2)
         ts2 = vhc2.read()
 
-        assert vhc2.are_incomparable(ts1, ts2), 'timestamps should be incomparable'
+        assert not vhc2.are_incomparable(ts1, ts2), 'timestamps should not be incomparable'
+        assert vhc2.are_concurrent(ts1, ts2), 'timestamps should be concurrent'
 
     def test_VectorHashClock_are_concurrent_returns_correct_bool(self):
         node_ids = [b'123', b'321']
