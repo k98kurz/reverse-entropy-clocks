@@ -7,6 +7,8 @@ clock can only be updated by the node that created it or any nodes with which it
 shares the root and max_time values, and it can be used in a distributed system
 to order events.
 
+To the author's knowledge, these are novel constructions.
+
 ## Overview
 
 The idea is that a message digest can form a lock that is opened by the preimage
