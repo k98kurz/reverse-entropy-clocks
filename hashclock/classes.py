@@ -54,19 +54,21 @@ class HashClock:
     """Implementation of the Reverse Entropy Clock."""
     uuid: bytes = field(default_factory=bytes)
     state: tuple[int, bytes] = field(default=None)
+    updater: HashClockUpdater = field(default=None)
 
     def setup(self, max_time: int, root_size: int = 16) -> HashClockUpdater:
         """Set up the instance if it hasn't been setup yet and return
             the updater for the clock.
         """
-        assert self.state is None, 'clock has already been setup'
+        if self.uuid and self.state and self.updater:
+            return self.updater
 
-        updater = HashClockUpdater.setup(token_bytes(root_size), max_time)
+        self.updater = HashClockUpdater.setup(token_bytes(root_size), max_time)
 
-        self.uuid = updater.uuid
+        self.uuid = self.updater.uuid
         self.state = (0, self.uuid)
 
-        return updater
+        return self.updater
 
     def read(self) -> int:
         """Read the current state of the clock."""
