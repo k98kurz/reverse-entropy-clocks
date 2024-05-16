@@ -11,7 +11,7 @@ class ClockUpdaterProtocol(Protocol):
         ...
 
     def advance(self, time: int) -> tuple[int, bytes]:
-        """Create an update that advances the clock to the given time."""
+        """Create a timestamp that advances the clock to the given time."""
         ...
 
     def pack(self) -> bytes:
@@ -36,20 +36,16 @@ class ClockProtocol(Protocol):
         """Read the current state of the clock."""
         ...
 
-    def can_be_updated(self) -> bool:
-        """Determines if the clock can possibly receive further updates."""
-        ...
-
-    def has_terminated(self) -> bool:
-        """Determines if the clock has provably terminated."""
-        ...
-
     def update(self, state: tuple[int, bytes]) -> ClockProtocol:
         """Update the clock if the state verifies."""
         ...
 
     def verify(self) -> bool:
         """Verifies the state."""
+        ...
+
+    def verify_timestamp(self, timestamp: tuple[int, bytes]) -> bool:
+        """Verify that the timestamp is valid."""
         ...
 
     def pack(self) -> bytes:
@@ -78,10 +74,10 @@ class VectorClockProtocol(Protocol):
         ...
 
     def advance(self, node_id: bytes, state: tuple[int, bytes]) -> dict:
-        """Create an update to advance the clock."""
+        """Create a timestamp to advance the clock."""
         ...
 
-    def update(self, state: dict) -> VectorClockProtocol:
+    def update(self, state: dict[bytes, tuple]) -> VectorClockProtocol:
         """Update the clock using a dict mapping node_id to tuple[int, bytes]."""
         ...
 
