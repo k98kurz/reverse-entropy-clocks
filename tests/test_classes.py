@@ -3,8 +3,6 @@ from secrets import token_bytes
 from context import classes, interfaces, misc
 import unittest
 
-from hashclock.classes import HashClock
-
 
 class TestClasses(unittest.TestCase):
     """Test suite for classes."""
