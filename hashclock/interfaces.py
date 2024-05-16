@@ -3,10 +3,10 @@ from typing import Protocol, runtime_checkable
 
 
 @runtime_checkable
-class HashClockUpdaterProtocol(Protocol):
+class ClockUpdaterProtocol(Protocol):
     """Duck typed Protocol showing what a HashClockUpdater must do."""
     @classmethod
-    def setup(cls, root: bytes, max_time: int) -> HashClockUpdaterProtocol:
+    def setup(cls, root: bytes, max_time: int) -> ClockUpdaterProtocol:
         """Set up a new instance."""
         ...
 
@@ -19,14 +19,14 @@ class HashClockUpdaterProtocol(Protocol):
         ...
 
     @classmethod
-    def unpack(cls, data: bytes) -> HashClockUpdaterProtocol:
+    def unpack(cls, data: bytes) -> ClockUpdaterProtocol:
         """Unpack a clock updater from bytes."""
         ...
 
 
 @runtime_checkable
-class HashClockProtocol(Protocol):
-    def setup(self, max_time: int, preimage_size: int = 16) -> HashClockUpdaterProtocol:
+class ClockProtocol(Protocol):
+    def setup(self, max_time: int, preimage_size: int = 16) -> ClockUpdaterProtocol:
         """Set up the instance if it hasn't been setup yet and return
             the updater for the clock.
         """
@@ -44,7 +44,7 @@ class HashClockProtocol(Protocol):
         """Determines if the clock has provably terminated."""
         ...
 
-    def update(self, state: tuple[int, bytes]) -> HashClockProtocol:
+    def update(self, state: tuple[int, bytes]) -> ClockProtocol:
         """Update the clock if the state verifies."""
         ...
 
@@ -57,19 +57,19 @@ class HashClockProtocol(Protocol):
         ...
 
     @classmethod
-    def unpack(cls, data: bytes) -> HashClockProtocol:
+    def unpack(cls, data: bytes) -> ClockProtocol:
         """Unpack a clock from bytes."""
         ...
 
 
 @runtime_checkable
-class VectorHashClockProtocol(Protocol):
-    def setup(self, node_ids: list[bytes] = None) -> VectorHashClockProtocol:
+class VectorClockProtocol(Protocol):
+    def setup(self, node_ids: list[bytes] = None) -> VectorClockProtocol:
         """Set up the vector clock."""
         ...
 
     @classmethod
-    def create(cls, uuid: bytes, node_ids: list[bytes]) -> VectorHashClockProtocol:
+    def create(cls, uuid: bytes, node_ids: list[bytes]) -> VectorClockProtocol:
         """Create a vector clock."""
         ...
 
@@ -81,7 +81,7 @@ class VectorHashClockProtocol(Protocol):
         """Create an update to advance the clock."""
         ...
 
-    def update(self, state: dict) -> VectorHashClockProtocol:
+    def update(self, state: dict) -> VectorClockProtocol:
         """Update the clock using a dict mapping node_id to tuple[int, bytes]."""
         ...
 
@@ -109,6 +109,6 @@ class VectorHashClockProtocol(Protocol):
         ...
 
     @classmethod
-    def unpack(cls, data: bytes) -> VectorHashClockProtocol:
+    def unpack(cls, data: bytes) -> VectorClockProtocol:
         """Unpack a clock from bytes."""
         ...

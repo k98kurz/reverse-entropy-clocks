@@ -12,9 +12,9 @@ class TestClasses(unittest.TestCase):
         pass
 
     # HashClock tests
-    def test_HashClock_implements_HashClockProtocol(self):
-        assert issubclass(classes.HashClock, interfaces.HashClockProtocol), \
-            'HashClock must implement HashClockProtocol'
+    def test_HashClock_implements_ClockProtocol(self):
+        assert issubclass(classes.HashClock, interfaces.ClockProtocol), \
+            'HashClock must implement ClockProtocol'
 
     def test_HashClock_setup_returns_HashClockUpdater_with_random_root(self):
         hc1 = classes.HashClock()
@@ -22,10 +22,10 @@ class TestClasses(unittest.TestCase):
         hc2 = classes.HashClock()
         hcu2 = hc2.setup(1)
 
-        assert isinstance(hcu1, interfaces.HashClockUpdaterProtocol), \
-            'setup() output should implement HashClockUpdaterProtocol'
-        assert isinstance(hcu2, interfaces.HashClockUpdaterProtocol), \
-            'setup() output should implement HashClockUpdaterProtocol'
+        assert isinstance(hcu1, interfaces.ClockUpdaterProtocol), \
+            'setup() output should implement ClockUpdaterProtocol'
+        assert isinstance(hcu2, interfaces.ClockUpdaterProtocol), \
+            'setup() output should implement ClockUpdaterProtocol'
         assert type(hcu1.root) is bytes, 'HCU root should be bytes'
         assert type(hcu2.root) is bytes, 'HCU root should be bytes'
         assert len(hcu1.root) == 16, 'root should be 16 bytes'
@@ -168,8 +168,8 @@ class TestClasses(unittest.TestCase):
 
     # HashClockUpdater tests
     def test_HashClockUpdater_implements_HashClockUpdater_Protocol(self):
-        assert issubclass(classes.HashClockUpdater, interfaces.HashClockUpdaterProtocol), \
-            'HashClockUpdater must implement HashClockUpdaterProtocol'
+        assert issubclass(classes.HashClockUpdater, interfaces.ClockUpdaterProtocol), \
+            'HashClockUpdater must implement ClockUpdaterProtocol'
 
     def test_HashClockUpdater_setup_returns_HashClockUpdater_instance(self):
         hcu = classes.HashClockUpdater.setup(token_bytes(16), 3)
@@ -231,9 +231,9 @@ class TestClasses(unittest.TestCase):
         assert hcu.max_time == unpacked.max_time
 
     # VectorHashClock tess
-    def test_VectorHashClock_implements_VectorHashClockProtocol(self):
-        assert issubclass(classes.VectorHashClock, interfaces.VectorHashClockProtocol), \
-            'VectorHashClock must implement VectorHashClockProtocol'
+    def test_VectorHashClock_implements_VectorClockProtocol(self):
+        assert issubclass(classes.VectorHashClock, interfaces.VectorClockProtocol), \
+            'VectorHashClock must implement VectorClockProtocol'
 
     def test_VectorHashClock_initializes_empty(self):
         vhc = classes.VectorHashClock()

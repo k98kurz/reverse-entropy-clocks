@@ -1,5 +1,25 @@
 from hashlib import sha256
 
+# error raising checks
+def tert(condition: bool, message: str) -> None:
+    """Raises TypeError with the given message if condition is True."""
+    if condition:
+        raise TypeError(message)
+
+def vert(condition: bool, message: str) -> None:
+    """Raises ValueError with the given message if condition is True."""
+    if condition:
+        raise ValueError(message)
+
+# cryptography
+def recursive_hash(preimage: bytes, count: int) -> bytes:
+    """Function to recursively hash a preimage."""
+    state = preimage
+    for _ in range(count):
+        state = sha256(state).digest()
+
+    return state
+
 # helper functions
 def xor(b1: bytes, b2: bytes) -> bytes:
     """XOR two equal-length byte strings together."""
@@ -12,14 +32,6 @@ def xor(b1: bytes, b2: bytes) -> bytes:
 def bytes_are_same(b1: bytes, b2: bytes) -> bool:
     """Timing-attack safe bytes comparison."""
     return len(b1) == len(b2) and int.from_bytes(xor(b1, b2), 'little') == 0
-
-def recursive_hash(preimage: bytes, count: int) -> bytes:
-    """Function to recursively hash a preimage."""
-    state = preimage
-    for _ in range(count):
-        state = sha256(state).digest()
-
-    return state
 
 def all_ascii(data: bytes) -> bool:
     """Determine if all bytes are displayable ascii chars."""

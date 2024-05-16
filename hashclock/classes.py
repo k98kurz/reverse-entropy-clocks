@@ -1,15 +1,18 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from hashclock.misc import bytes_are_same, recursive_hash
+from hashclock.misc import (
+    bytes_are_same,
+    recursive_hash,
+)
 from secrets import token_bytes
-from uuid import uuid1
+from uuid import uuid4
 import json
 import struct
 
 
 @dataclass
 class HashClockUpdater:
-    """Implementation of the HashClockUpdaterProtocol."""
+    """Implementation of the ClockUpdaterProtocol."""
     root: bytes
     uuid: bytes
     max_time: int
@@ -139,7 +142,7 @@ class HashClock:
 
 @dataclass
 class VectorHashClock:
-    uuid: bytes = field(default_factory=lambda: uuid1().bytes)
+    uuid: bytes = field(default_factory=lambda: uuid4().bytes)
     node_ids: list[bytes] = field(default=None)
     hash_clocks: dict = field(default_factory=dict)
 
