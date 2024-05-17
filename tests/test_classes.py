@@ -4,17 +4,13 @@ from context import classes, interfaces, misc
 import unittest
 
 
-class TestClasses(unittest.TestCase):
-    """Test suite for classes."""
-    def test_imports_without_error(self):
-        pass
-
-    # HashClock tests
-    def test_HashClock_implements_ClockProtocol(self):
+class TestHashClock(unittest.TestCase):
+    """Test suite for HashClock."""
+    def test_implements_ClockProtocol(self):
         assert issubclass(classes.HashClock, interfaces.ClockProtocol), \
             'HashClock must implement ClockProtocol'
 
-    def test_HashClock_setup_returns_HashClockUpdater_with_random_root(self):
+    def test_setup_returns_HashClockUpdater_with_random_root(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(1)
         clock2 = classes.HashClock()
@@ -36,20 +32,20 @@ class TestClasses(unittest.TestCase):
         assert clock1.uuid == sha256(clockupdater1.advance(1)[1]).digest(), \
             'clock uuid should be hash of state at time=1'
 
-    def test_HashClock_created_from_uuid_returns_None_from_setup(self):
+    def test_created_from_uuid_returns_None_from_setup(self):
         clock1 = classes.HashClock()
         _ = clock1.setup(1)
         clock2 = classes.HashClock(clock1.uuid)
         assert clock2.setup(1) is None
 
-    def test_HashClock_setup_can_be_updated(self):
+    def test_setup_can_be_updated(self):
         clock1 = classes.HashClock()
         _ = clock1.setup(1)
 
         assert clock1.can_be_updated(), 'can_be_updated() should be True after setup'
         assert not clock1.has_terminated(), 'has_terminated() should return False after setup'
 
-    def test_HashClock_update_increases_read_output(self):
+    def test_update_increases_read_output(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(3)
 
@@ -61,7 +57,7 @@ class TestClasses(unittest.TestCase):
         clock1.update(clockupdater1.advance(3))
         assert clock1.read() == 3
 
-    def test_HashClock_update_is_idempotent(self):
+    def test_update_is_idempotent(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(3)
 
@@ -79,7 +75,7 @@ class TestClasses(unittest.TestCase):
         clock1.update(update1)
         assert clock1.read() == 2, 'no change after reapplying old update'
 
-    def test_HashClock_update_rejects_invalid_updates(self):
+    def test_update_rejects_invalid_updates(self):
         clock1, clock2 = classes.HashClock(), classes.HashClock()
         clockupdater1 = clock1.setup(2)
         clockupdater2 = clock2.setup(2)
@@ -92,13 +88,13 @@ class TestClasses(unittest.TestCase):
         clock2.update(clockupdater1.advance(1))
         assert clock2.read() == 0
 
-    def test_HashClock_can_be_updated_and_has_terminated_return_False_for_unsetup_clock(self):
+    def test_can_be_updated_and_has_terminated_return_False_for_unsetup_clock(self):
         clock1 = classes.HashClock()
 
         assert not clock1.can_be_updated()
         assert not clock1.has_terminated()
 
-    def test_HashClock_can_be_updated_returns_False_for_terminated_clock(self):
+    def test_can_be_updated_returns_False_for_terminated_clock(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(1)
 
@@ -108,7 +104,7 @@ class TestClasses(unittest.TestCase):
         assert not clock1.can_be_updated(), 'can_be_updated() should return False'
         assert clock1.has_terminated(), 'has_terminated() should return True'
 
-    def test_HashClock_pack_returns_bytes(self):
+    def test_pack_returns_bytes(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(2)
 
@@ -126,7 +122,7 @@ class TestClasses(unittest.TestCase):
         assert len(packed) < packed_len_0, \
             'pack() result length should be shorted for terminated clock'
 
-    def test_HashClock_unpack_works_with_pack_output(self):
+    def test_unpack_works_with_pack_output(self):
         clock1 = classes.HashClock()
         _ = clock1.setup(1)
 
@@ -140,7 +136,7 @@ class TestClasses(unittest.TestCase):
         for i, v in enumerate(clock1.state):
             assert v == unpacked.state[i], 'all state items should match'
 
-    def test_HashClock_verify_returns_True_for_valid_state(self):
+    def test_verify_returns_True_for_valid_state(self):
         clock1 = classes.HashClock()
         assert clock1.verify(), 'verify() should return True for valid state'
 
@@ -151,7 +147,7 @@ class TestClasses(unittest.TestCase):
 
         assert clock1.verify(), 'verify() should return True for valid state'
 
-    def test_HashClock_verify_returns_False_for_invalid_state(self):
+    def test_verify_returns_False_for_invalid_state(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(1)
         clock1.update(clockupdater1.advance(1))
@@ -159,14 +155,14 @@ class TestClasses(unittest.TestCase):
 
         assert not clock1.verify(), 'verify() should return False for invalid state'
 
-    def test_HashClock_verify_timestamp_returns_True_for_valid_and_False_for_invalid_ts(self):
+    def test_verify_timestamp_returns_True_for_valid_and_False_for_invalid_ts(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(1)
         ts = clockupdater1.advance(1)
         assert clock1.verify_timestamp(ts)
         assert not clock1.verify_timestamp((1, token_bytes(32)))
 
-    def test_HashClock_can_be_updated_returns_True_for_terminated_clock_with_setup_root_32(self):
+    def test_can_be_updated_returns_True_for_terminated_clock_with_setup_root_32(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(1, root_size=32)
         assert clock1.verify()
@@ -177,8 +173,10 @@ class TestClasses(unittest.TestCase):
         assert clock1.can_be_updated()
         assert not clock1.has_terminated()
 
-    # HashClockUpdater tests
-    def test_HashClockUpdater_implements_HashClockUpdater_Protocol(self):
+
+class TestHashClockUpdater(unittest.TestCase):
+    """Test suite for HashClockUpdater."""
+    def test_HashClockUpdater_implements_ClockUpdaterProtocol(self):
         assert issubclass(classes.HashClockUpdater, interfaces.ClockUpdaterProtocol), \
             'HashClockUpdater must implement ClockUpdaterProtocol'
 
@@ -192,7 +190,7 @@ class TestClasses(unittest.TestCase):
 
         assert type(clockupdater.advance(3)) is tuple, 'must advance up to time=3'
 
-        with self.assertRaises(AssertionError) as e:
+        with self.assertRaises(ValueError) as e:
             clockupdater.advance(4)
         assert str(e.exception) == 'time must be int <= max_time', \
             'advance(n) where n > max_time should throw exception with matching str'
@@ -241,18 +239,20 @@ class TestClasses(unittest.TestCase):
         assert clockupdater.root == unpacked.root
         assert clockupdater.max_time == unpacked.max_time
 
-    # VectorHashClock tess
-    def test_VectorHashClock_implements_VectorClockProtocol(self):
+
+class TestVectorHashClock(unittest.TestCase):
+    """Test suite for VectorHashClock."""
+    def test_implements_VectorClockProtocol(self):
         assert issubclass(classes.VectorHashClock, interfaces.VectorClockProtocol), \
             'VectorHashClock must implement VectorClockProtocol'
 
-    def test_VectorHashClock_initializes_empty(self):
+    def test_initializes_empty(self):
         vectorclock = classes.VectorHashClock()
 
         assert vectorclock.node_ids is None
         assert vectorclock.clocks == {}
 
-    def test_VectorHashClock_setup_sets_node_ids_and_unsetup_clocks(self):
+    def test_setup_sets_node_ids_and_unsetup_clocks(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
 
@@ -265,7 +265,7 @@ class TestClasses(unittest.TestCase):
             assert not vectorclock.clocks[id].can_be_updated()
             assert not vectorclock.clocks[id].has_terminated()
 
-    def test_VectorHashClock_read_returns_all_negative_ones_after_setup(self):
+    def test_read_returns_all_negative_ones_after_setup(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
 
@@ -280,7 +280,7 @@ class TestClasses(unittest.TestCase):
                 assert type(ts[id]) is bytes, 'uuid must be bytes'
                 assert ts[id] == vectorclock.uuid
 
-    def test_VectorHashClock_advance_returns_dict_with_proper_form(self):
+    def test_advance_returns_dict_with_proper_form(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
         clock = vectorclock.clocks[node_ids[0]]
@@ -298,7 +298,7 @@ class TestClasses(unittest.TestCase):
         assert type(update[node_ids[0]][1]) is bytes, \
             'advance() dict must map node_id to tuple[int, bytes'
 
-    def test_VectorHashClock_update_accepts_advance_output_and_advances_clock(self):
+    def test_update_accepts_advance_output_and_advances_clock(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
         clock = classes.HashClock()
@@ -322,7 +322,7 @@ class TestClasses(unittest.TestCase):
             diff += 1 if before[id] != after[id] else 0
         assert diff == 1, 'read() output should change by exactly 1 after update'
 
-    def test_VectorHashClock_can_update_with_initial_states_of_HashClocks(self):
+    def test_can_update_with_initial_states_of_HashClocks(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
         clock1 = classes.HashClock()
@@ -342,7 +342,7 @@ class TestClasses(unittest.TestCase):
         assert vectorclock.happens_before(ts2, ts3), 'time moves forward'
         assert vectorclock.happens_before(ts1, ts3), 'time moves forward transitively'
 
-    def test_VectorHashClock_verify_returns_True_if_all_clocks_valid(self):
+    def test_verify_returns_True_if_all_clocks_valid(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
 
@@ -359,7 +359,7 @@ class TestClasses(unittest.TestCase):
 
         assert not vectorclock.verify(), 'clock should not verify if underlying clock fails verification'
 
-    def test_VectorHashClock_verify_timestamp_returns_correct_bool(self):
+    def test_verify_timestamp_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
         clock0 = classes.HashClock()
@@ -376,7 +376,7 @@ class TestClasses(unittest.TestCase):
         assert vectorclock.verify_timestamp(good_ts)
         assert not vectorclock.verify_timestamp(bad_ts)
 
-    def test_VectorHashClock_happens_before_returns_correct_bool(self):
+    def test_happens_before_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
         clock = classes.HashClock()
@@ -399,7 +399,7 @@ class TestClasses(unittest.TestCase):
         assert not classes.VectorHashClock.happens_before(after, after), \
             'happens_before(after, after) must return False for valid timestamps'
 
-    def test_VectorHashClock_are_incomparable_returns_correct_bool(self):
+    def test_are_incomparable_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vclock1 = classes.VectorHashClock().setup(node_ids)
         vclock2 = classes.VectorHashClock().setup([*node_ids, b'abc'])
@@ -435,7 +435,7 @@ class TestClasses(unittest.TestCase):
         assert not vclock2.are_incomparable(ts1, ts2), 'timestamps should not be incomparable'
         assert vclock2.are_concurrent(ts1, ts2), 'timestamps should be concurrent'
 
-    def test_VectorHashClock_are_concurrent_returns_correct_bool(self):
+    def test_are_concurrent_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vclock1 = classes.VectorHashClock().setup(node_ids)
         clock1 = classes.HashClock()
@@ -455,7 +455,7 @@ class TestClasses(unittest.TestCase):
         assert not vclock1.are_concurrent(ts2, ts1), \
             'are_concurrent() must return False for sequential timestamps'
 
-    def test_VectorHashClock_pack_returns_bytes_that_change_with_state(self):
+    def test_pack_returns_bytes_that_change_with_state(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
         clock = classes.HashClock()
@@ -476,7 +476,7 @@ class TestClasses(unittest.TestCase):
         assert packed1 != packed2, \
             'pack() output must change with underlying state change'
 
-    def test_VectorHashClock_unpack_returns_valid_instance(self):
+    def test_unpack_returns_valid_instance(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
         clock = classes.HashClock()
@@ -491,17 +491,19 @@ class TestClasses(unittest.TestCase):
         assert vectorclock.are_concurrent(vectorclock.read(), unpacked.read()), \
             'timestamps must be concurrent between unpacked and source vectorclock'
 
-    # PointClockUpdater tests
-    def test_PointClockUpdater_implements_PointClockUpdater_Protocol(self):
+
+class TestPointClockUpdater(unittest.TestCase):
+    """Test suite for PointClockUpdater."""
+    def test_implements_ClockUpdaterProtocol(self):
         assert issubclass(classes.PointClockUpdater, interfaces.ClockUpdaterProtocol), \
             'PointClockUpdater must implement ClockUpdaterProtocol'
 
-    def test_PointClockUpdater_setup_returns_PointClockUpdater_instance(self):
+    def test_setup_returns_PointClockUpdater_instance(self):
         clockupdater = classes.PointClockUpdater.setup(token_bytes(16), 3)
 
         assert isinstance(clockupdater, classes.PointClockUpdater)
 
-    def test_PointClockUpdater_can_advance_to_max_time_but_no_further(self):
+    def test_can_advance_to_max_time_but_no_further(self):
         clockupdater = classes.PointClockUpdater.setup(token_bytes(16), 3)
 
         assert type(clockupdater.advance(3)) is tuple, 'must advance up to time=3'
@@ -511,7 +513,7 @@ class TestClasses(unittest.TestCase):
         assert str(e.exception) == 'time must be int <= max_time', \
             'advance(n) where n > max_time should throw exception with matching str'
 
-    def test_PointClockUpdater_advance_returns_chained_point_double_from_root_vkey(self):
+    def test_advance_returns_chained_point_double_from_root_vkey(self):
         root = token_bytes(16)
         skey = misc.derive_key_from_seed(misc.H_small(root))
         vkey = misc.derive_point_from_scalar(skey)
@@ -531,7 +533,7 @@ class TestClasses(unittest.TestCase):
         assert clockupdater.advance(100)[1] == vkey, \
             'advance(100)[1] must be root vkey for setup(root, 100)'
 
-    def test_PointClockUpdater_advance_and_sign_produces_signed_timestamp(self):
+    def test_advance_and_sign_produces_signed_timestamp(self):
         root = token_bytes(16)
         clockupdater = classes.PointClockUpdater.setup(root, 2)
         message = b'hello world'
@@ -541,13 +543,13 @@ class TestClasses(unittest.TestCase):
         assert type(timestamp[1]) is bytes and len(timestamp[1]) == 32
         assert type(timestamp[2]) is bytes and len(timestamp[2]) == 64
 
-    def test_PointClockUpdater_pack_returns_bytes(self):
+    def test_pack_returns_bytes(self):
         clockupdater = classes.PointClockUpdater.setup(token_bytes(16), 3)
         packed = clockupdater.pack()
 
         assert type(packed) is bytes, 'pack() must return bytes'
 
-    def test_PointClockUpdater_unpack_returns_instance_with_same_values(self):
+    def test_unpack_returns_instance_with_same_values(self):
         clockupdater = classes.PointClockUpdater.setup(token_bytes(16), 3)
         packed = clockupdater.pack()
         unpacked = classes.PointClockUpdater.unpack(packed)
@@ -557,12 +559,14 @@ class TestClasses(unittest.TestCase):
         assert clockupdater.root == unpacked.root
         assert clockupdater.max_time == unpacked.max_time
 
-    # PointClock tests
-    def test_PointClock_implements_ClockProtocol(self):
+
+class TestPointClock(unittest.TestCase):
+    """Test suite for PointClock."""
+    def test_implements_ClockProtocol(self):
         assert issubclass(classes.PointClock, interfaces.ClockProtocol), \
             'PointClock must implement ClockProtocol'
 
-    def test_PointClock_setup_returns_PointClockUpdater_with_random_root(self):
+    def test_setup_returns_PointClockUpdater_with_random_root(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(1)
         clock2 = classes.PointClock()
@@ -585,13 +589,13 @@ class TestClasses(unittest.TestCase):
         assert clock1.uuid == misc.recursive_next_point(clockupdater1.advance(1)[1], 1), \
             'clock uuid should be state + state at time=1'
 
-    def test_PointClock_created_from_uuid_returns_None_from_setup(self):
+    def test_created_from_uuid_returns_None_from_setup(self):
         clock1 = classes.PointClock()
         _ = clock1.setup(1)
         clock2 = classes.PointClock(clock1.uuid)
         assert clock2.setup(1) is None
 
-    def test_PointClock_update_increases_read_output(self):
+    def test_update_increases_read_output(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(4)
 
@@ -603,7 +607,7 @@ class TestClasses(unittest.TestCase):
         clock1.update(clockupdater1.advance(3))
         assert clock1.read() == 3
 
-    def test_PointClock_update_is_idempotent(self):
+    def test_update_is_idempotent(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(3)
 
@@ -621,7 +625,7 @@ class TestClasses(unittest.TestCase):
         clock1.update(timestamp1)
         assert clock1.read() == 2, 'no change after reapplying old update'
 
-    def test_PointClock_update_rejects_invalid_updates(self):
+    def test_update_rejects_invalid_updates(self):
         clock1, clock2 = classes.PointClock(), classes.PointClock()
         clockupdater1 = clock1.setup(2)
         clockupdater2 = clock2.setup(2)
@@ -634,7 +638,7 @@ class TestClasses(unittest.TestCase):
         clock2.update(clockupdater1.advance(1))
         assert clock2.read() == 0
 
-    def test_PointClock_pack_returns_bytes(self):
+    def test_pack_returns_bytes(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(2)
 
@@ -650,7 +654,7 @@ class TestClasses(unittest.TestCase):
         packed = clock1.pack()
         assert type(packed) is bytes, 'pack() should return bytes'
 
-    def test_PointClock_unpack_works_with_pack_output(self):
+    def test_unpack_works_with_pack_output(self):
         clock1 = classes.PointClock()
         _ = clock1.setup(1)
 
@@ -664,7 +668,7 @@ class TestClasses(unittest.TestCase):
         for i, v in enumerate(clock1.state):
             assert v == unpacked.state[i], 'all state items should match'
 
-    def test_PointClock_verify_returns_True_for_valid_state(self):
+    def test_verify_returns_True_for_valid_state(self):
         clock1 = classes.PointClock()
         assert clock1.verify(), 'verify() should return True for valid state'
 
@@ -675,7 +679,7 @@ class TestClasses(unittest.TestCase):
 
         assert clock1.verify(), 'verify() should return True for valid state'
 
-    def test_PointClock_verify_returns_False_for_invalid_state(self):
+    def test_verify_returns_False_for_invalid_state(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(1)
         clock1.update(clockupdater1.advance(1))
@@ -683,14 +687,14 @@ class TestClasses(unittest.TestCase):
 
         assert not clock1.verify(), 'verify() should return False for invalid state'
 
-    def test_PointClock_verify_timestamp_returns_True_for_valid_and_False_for_invalid_ts(self):
+    def test_verify_timestamp_returns_True_for_valid_and_False_for_invalid_ts(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(1)
         ts = clockupdater1.advance(1)
         assert clock1.verify_timestamp(ts)
         assert not clock1.verify_timestamp((1, token_bytes(32)))
 
-    def test_PointClock_verify_signed_update_returns_True_for_valid_and_False_for_invalid_signed_ts(self):
+    def test_verify_signed_update_returns_True_for_valid_and_False_for_invalid_signed_ts(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(1)
         message = b'hello world'
@@ -702,18 +706,20 @@ class TestClasses(unittest.TestCase):
             message + b'123'
         )
 
-    # VectorPointClock tess
-    def test_VectorPointClock_implements_VectorClockProtocol(self):
+
+class TestVectorPointClock(unittest.TestCase):
+    """Test suite for VectorPointClock."""
+    def test_implements_VectorClockProtocol(self):
         assert issubclass(classes.VectorPointClock, interfaces.VectorClockProtocol), \
             'VectorPointClock must implement VectorClockProtocol'
 
-    def test_VectorPointClock_initializes_empty(self):
+    def test_initializes_empty(self):
         vectorclock = classes.VectorPointClock()
 
         assert vectorclock.node_ids is None
         assert vectorclock.clocks == {}
 
-    def test_VectorPointClock_setup_sets_node_ids_and_unsetup_clocks(self):
+    def test_setup_sets_node_ids_and_unsetup_clocks(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
 
@@ -724,7 +730,7 @@ class TestClasses(unittest.TestCase):
             assert id in node_ids
             assert isinstance(vectorclock.clocks[id], classes.PointClock)
 
-    def test_VectorPointClock_read_returns_all_negative_ones_after_setup(self):
+    def test_read_returns_all_negative_ones_after_setup(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
 
@@ -739,7 +745,7 @@ class TestClasses(unittest.TestCase):
                 assert type(ts[id]) is bytes, 'uuid must be bytes'
                 assert ts[id] == vectorclock.uuid
 
-    def test_VectorPointClock_advance_returns_dict_with_proper_form(self):
+    def test_advance_returns_dict_with_proper_form(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
         clock = vectorclock.clocks[node_ids[0]]
@@ -757,7 +763,7 @@ class TestClasses(unittest.TestCase):
         assert type(timestamp[node_ids[0]][1]) is bytes, \
             'advance() dict must map node_id to tuple[int, bytes'
 
-    def test_VectorPointClock_update_accepts_advance_output_and_advances_clock(self):
+    def test_update_accepts_advance_output_and_advances_clock(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
         clock = classes.PointClock()
@@ -781,7 +787,7 @@ class TestClasses(unittest.TestCase):
             diff += 1 if before[id] != after[id] else 0
         assert diff == 1, 'read() output should change by exactly 1 after update'
 
-    def test_VectorPointClock_can_update_with_initial_states_of_PointClocks(self):
+    def test_can_update_with_initial_states_of_PointClocks(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
         clock1 = classes.PointClock()
@@ -801,7 +807,7 @@ class TestClasses(unittest.TestCase):
         assert vectorclock.happens_before(ts2, ts3), 'time moves forward'
         assert vectorclock.happens_before(ts1, ts3), 'time moves forward transitively'
 
-    def test_VectorPointClock_verify_returns_True_if_all_clocks_valid(self):
+    def test_verify_returns_True_if_all_clocks_valid(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
 
@@ -818,7 +824,7 @@ class TestClasses(unittest.TestCase):
 
         assert not vectorclock.verify(), 'clock should not verify if underlying clock fails verification'
 
-    def test_VectorPointClock_verify_timestamp_returns_correct_bool(self):
+    def test_verify_timestamp_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
         clock0 = classes.PointClock()
@@ -835,7 +841,7 @@ class TestClasses(unittest.TestCase):
         assert vectorclock.verify_timestamp(good_ts)
         assert not vectorclock.verify_timestamp(bad_ts)
 
-    def test_VectorPointClock_happens_before_returns_correct_bool(self):
+    def test_happens_before_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
         clock = classes.PointClock()
@@ -858,7 +864,7 @@ class TestClasses(unittest.TestCase):
         assert not classes.VectorPointClock.happens_before(after, after), \
             'happens_before(after, after) must return False for valid timestamps'
 
-    def test_VectorPointClock_are_incomparable_returns_correct_bool(self):
+    def test_are_incomparable_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vectorclock1 = classes.VectorPointClock().setup(node_ids)
         vectorclock2 = classes.VectorPointClock().setup([*node_ids, b'abc'])
@@ -894,7 +900,7 @@ class TestClasses(unittest.TestCase):
         assert not vectorclock2.are_incomparable(ts1, ts2), 'timestamps should not be incomparable'
         assert vectorclock2.are_concurrent(ts1, ts2), 'timestamps should be concurrent'
 
-    def test_VectorPointClock_are_concurrent_returns_correct_bool(self):
+    def test_are_concurrent_returns_correct_bool(self):
         node_ids = [b'123', b'321']
         vectorclock1 = classes.VectorPointClock().setup(node_ids)
         clock1 = classes.PointClock()
@@ -914,7 +920,7 @@ class TestClasses(unittest.TestCase):
         assert not vectorclock1.are_concurrent(ts2, ts1), \
             'are_concurrent() must return False for sequential timestamps'
 
-    def test_VectorPointClock_pack_returns_bytes_that_change_with_state(self):
+    def test_pack_returns_bytes_that_change_with_state(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
         clock = classes.PointClock()
@@ -935,7 +941,7 @@ class TestClasses(unittest.TestCase):
         assert packed1 != packed2, \
             'pack() output must change with underlying state change'
 
-    def test_VectorPointClock_unpack_returns_valid_instance(self):
+    def test_unpack_returns_valid_instance(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorPointClock().setup(node_ids)
         clock = classes.PointClock()
