@@ -18,6 +18,14 @@ class RunMathematicalProofs(unittest.TestCase):
 
 
 def divide_point_by_two(point: bytes) -> bytes:
+    """Divides a point by the scalar equivalent of 2.
+        x * x^-1 = 1
+        (x * x^-1) + (x * x^-1) = 2
+        [(x * x^-1) + (x * x^-1)]^-1 = 1/2
+        let s := [(x * x^-1) + (x * x^-1)]^-1
+        let P2 := P1 + P1
+        P2 * s == P1
+    """
     x = misc.clamp_scalar(misc.H_small(b'one'))
     scalar1 = nacl.bindings.crypto_core_ed25519_scalar_mul(
         x,
