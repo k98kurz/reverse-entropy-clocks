@@ -26,9 +26,10 @@ class ClockUpdaterProtocol(Protocol):
 
 @runtime_checkable
 class ClockProtocol(Protocol):
-    def setup(self, max_time: int, preimage_size: int = 16) -> ClockUpdaterProtocol:
+    def setup(self, max_time: int, preimage_size: int = 16) -> ClockUpdaterProtocol|None:
         """Set up the instance if it hasn't been setup yet and return
-            the updater for the clock.
+            the updater for the clock. If it has been setup (i.e. has a
+            uuid), return the updater if there is one or None.
         """
         ...
 
@@ -83,6 +84,10 @@ class VectorClockProtocol(Protocol):
 
     def verify(self) -> bool:
         """Verify that all underlying HashClocks are valid."""
+        ...
+
+    def verify_timestamp(self, timestamp: dict[bytes, bytes|tuple]) -> bool:
+        """Verify that the timestamp is valid."""
         ...
 
     @staticmethod

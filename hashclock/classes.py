@@ -4,8 +4,8 @@ from hashclock.misc import (
     bytes_are_same,
     derive_point_from_scalar,
     recursive_hash,
-    recursive_add_point,
-    recursive_add_scalar,
+    recursive_next_point,
+    recursive_next_scalar,
     derive_key_from_seed,
     sign_with_scalar,
     H_small,
@@ -13,6 +13,7 @@ from hashclock.misc import (
     VerifyKey,
     tert,
     vert,
+    sert,
 )
 from secrets import token_bytes
 from uuid import uuid4
@@ -69,11 +70,14 @@ class HashClock:
     state: tuple[int, bytes] = field(default=None)
     updater: HashClockUpdater = field(default=None)
 
-    def setup(self, max_time: int, root_size: int = 16) -> HashClockUpdater:
+    def setup(self, max_time: int, root_size: int = 16) -> HashClockUpdater|None:
         """Set up the instance if it hasn't been setup yet and return
-            the updater for the clock.
+            the updater for the clock. If it has been setup (i.e. has a
+            uuid), return the updater if there is one or None.
         """
-        if self.uuid and self.state and self.updater:
+        if self.uuid:
+            if not self.state:
+                self.state = (0, self.uuid)
             return self.updater
 
         self.updater = HashClockUpdater.setup(token_bytes(root_size), max_time)
@@ -89,7 +93,7 @@ class HashClock:
 
     def can_be_updated(self) -> bool:
         """Determines if the clock can possibly receive further updates."""
-        return not (self.state is None or len(self.state[-1]) != 32)
+        return not (self.state is None or self.state[1] is None or len(self.state[-1]) != 32)
 
     def has_terminated(self) -> bool:
         """Determines if the clock has provably terminated."""
@@ -99,14 +103,10 @@ class HashClock:
         """Update the clock if the state verifies."""
         assert type(state) in (tuple, list), \
             'states must be tuple or list of (int, bytes)'
-        assert self.state is not None, 'cannot update unsetup clock'
-
-        # ignore if we cannot update
-        if not self.can_be_updated():
-            return self
+        assert self.uuid is not None, 'cannot update clock without valid uuid'
 
         # ignore old updates
-        if state[0] <= self.state[0]:
+        if self.state and self.state[0] is not None and state[0] <= self.state[0]:
             return self
 
         # verify the update maps back to the most recent state
@@ -128,6 +128,11 @@ class HashClock:
 
     def verify_timestamp(self, timestamp: tuple[int, bytes]) -> bool:
         """Verifies the timestamp is valid for this clock."""
+        if type(timestamp) is not tuple or len(timestamp) < 2:
+            return False
+        if type(timestamp[1]) is not bytes or len(timestamp[1]) == 0:
+            return False
+
         calc_state = recursive_hash(timestamp[1], timestamp[0])
 
         return bytes_are_same(calc_state, self.uuid)
@@ -211,6 +216,10 @@ class VectorHashClock:
             self.clocks[node_id].state = state
 
         update = {b'uuid': self.uuid}
+        for nid in self.node_ids:
+            clock_state = self.clocks[nid].state
+            if clock_state and clock_state[1]:
+                update[nid] = clock_state
         update[node_id] = state
 
         return update
@@ -225,35 +234,54 @@ class VectorHashClock:
             assert id in self.node_ids or id == b'uuid', 'state includes invalid node_id'
 
         for id in state:
-            if id != b'uuid':
-                if self.clocks[id].state is None:
-                    uuid = recursive_hash(state[id][1], state[id][0])
-                    self.clocks[id].uuid = uuid
-                    self.clocks[id].state = (0, uuid)
+            if id == b'uuid' or state[id][1] is None:
+                continue
 
-                self.clocks[id].update(state[id])
+            if self.clocks[id].state is None:
+                uuid = recursive_hash(state[id][1], state[id][0])
+                self.clocks[id].uuid = uuid
+                self.clocks[id].state = (0, uuid)
+
+            self.clocks[id].update(state[id])
 
         return self
 
     def verify(self) -> bool:
         """Verify that all underlying HashClocks are valid."""
-        valid = True
-
         for id in self.node_ids:
-            valid = valid and self.clocks[id].verify()
+            if not self.clocks[id].verify():
+                return False
 
-        return valid
+        return True
+
+    def verify_timestamp(self, timestamp: dict[bytes, bytes|tuple]) -> bool:
+        """Verify that the timestamp is valid."""
+        if b'uuid' not in timestamp or timestamp[b'uuid'] != self.uuid:
+            return False
+
+        for id in [id for id in timestamp if id != b'uuid']:
+            if id not in self.node_ids:
+                return False
+
+            if not self.clocks[id].verify_timestamp(timestamp[id]):
+                return False
+
+        return True
 
     @staticmethod
     def happens_before(ts1: dict, ts2: dict) -> bool:
-        """Determine if ts1 happens before ts2."""
+        """Determine if ts1 happens before ts2. As long as at least
+            one node_id contained in both timestamps has a higher value
+            in ts1 and no node_id shared by both has a higher value in
+            ts2, ts1 happened-before ts2.
+        """
         assert not VectorHashClock.are_incomparable(ts1, ts2), \
             'incomparable timestamps cannot be compared for happens-before relation'
 
         reverse_causality = False
         at_least_one_earlier = False
 
-        for id in ts1:
+        for id in [id for id in ts1 if id in ts2 and id != b'uuid']:
             if ts1[id][0] > ts2[id][0]:
                 reverse_causality = True
             if ts1[id][0] < ts2[id][0]:
@@ -263,7 +291,10 @@ class VectorHashClock:
 
     @staticmethod
     def are_incomparable(ts1: dict, ts2: dict) -> bool:
-        """Determine if ts1 and ts2 are incomparable."""
+        """Determine if ts1 and ts2 are incomparable. As long as the
+            two timestamps share one node_id in common, they are
+            comparable.
+        """
         assert type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]'
         assert type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]'
         assert b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have both have uuids'
@@ -271,17 +302,15 @@ class VectorHashClock:
         if not bytes_are_same(ts1[b'uuid'], ts2[b'uuid']):
             return True
 
-        incomparable = False
-
         for id in ts1:
-            if id not in ts2:
-                incomparable = True
+            if id in ts2:
+                return False
 
         for id in ts2:
-            if id not in ts1:
-                incomparable = True
+            if id in ts1:
+                return False
 
-        return incomparable
+        return True
 
     @staticmethod
     def are_concurrent(ts1: dict, ts2: dict) -> bool:
@@ -297,7 +326,7 @@ class VectorHashClock:
         jsonified = {'uuid': self.uuid.hex()}
 
         for id in self.node_ids:
-            if self.clocks[id].state is not None:
+            if self.clocks[id].state is not None and self.clocks[id].state[1] is not None:
                 jsonified[id.hex()] = self.clocks[id].pack().hex()
             else:
                 jsonified[id.hex()] = None
@@ -340,7 +369,7 @@ class PointClockUpdater:
     def setup(cls, root: bytes, max_time: int) -> PointClockUpdater:
         """Set up a new instance."""
         skey = SigningKey(H_small(root))
-        state = recursive_add_point(bytes(skey.verify_key), max_time)
+        state = recursive_next_point(bytes(skey.verify_key), max_time)
 
         return cls(root=root, uuid=state, max_time=max_time)
 
@@ -350,7 +379,7 @@ class PointClockUpdater:
         vert(time <= self.max_time, 'time must be int <= max_time')
 
         skey = SigningKey(H_small(self.root))
-        state = recursive_add_point(bytes(skey.verify_key), self.max_time - time)
+        state = recursive_next_point(bytes(skey.verify_key), self.max_time - time)
 
         return (time, state)
 
@@ -365,7 +394,7 @@ class PointClockUpdater:
         vert(len(message) > 0, 'message must not be empty')
 
         x = derive_key_from_seed(H_small(self.root))
-        x = recursive_add_scalar(x, self.max_time - time)
+        x = recursive_next_scalar(x, self.max_time - time)
         X = derive_point_from_scalar(x)
         sig = sign_with_scalar(x, message, self.root)
         return (time, X, sig)
@@ -396,11 +425,14 @@ class PointClock:
     state: tuple[int, bytes] = field(default=None)
     updater: PointClockUpdater = field(default=None)
 
-    def setup(self, max_time: int, root_size: int = 32) -> PointClockUpdater:
+    def setup(self, max_time: int, root_size: int = 32) -> PointClockUpdater|None:
         """Set up the instance if it hasn't been setup yet and return
-            the updater for the clock.
+            the updater for the clock. If it has been setup (i.e. has a
+            uuid), return the updater if there is one or None.
         """
-        if self.uuid and self.state and self.updater:
+        if self.uuid:
+            if not self.state:
+                self.state = (0, self.uuid)
             return self.updater
 
         self.updater = PointClockUpdater.setup(token_bytes(root_size), max_time)
@@ -418,16 +450,16 @@ class PointClock:
         """Update the clock if the state verifies."""
         assert type(state) in (tuple, list), \
             'states must be tuple or list of (int, bytes)'
-        assert self.state is not None, 'cannot update unsetup clock'
+        assert self.uuid is not None, 'cannot update clock without valid uuid'
 
         # ignore old updates
-        if state[0] <= self.state[0]:
+        if self.state and self.state[0] is not None and state[0] <= self.state[0]:
             return self
 
         time, calc_state = state[0], state[1]
 
         # verify the update maps back to the most recent state
-        calc_state = recursive_add_point(calc_state, time - self.state[0])
+        calc_state = recursive_next_point(calc_state, time - self.state[0])
 
         if bytes_are_same(calc_state, self.state[1]):
             self.state = tuple(state)
@@ -440,24 +472,25 @@ class PointClock:
             return True
 
         try:
-            calc_state = recursive_add_point(self.state[1], self.state[0])
+            calc_state = recursive_next_point(self.state[1], self.state[0])
             return bytes_are_same(calc_state, self.uuid)
         except:
             return False
 
     def verify_timestamp(self, timestamp: tuple) -> bool:
         """Verify a timestamp."""
-        tert(type(timestamp) is tuple, 'timestamp must be tuple of (int, bytes)')
-        vert(len(timestamp) == 2, 'timestamp must be tuple of (int, bytes)')
-
-        # check that it is a valid point for the entropy clock
-        time, point = timestamp
-        try:
-            calc_point = recursive_add_point(point, time)
-        except:
+        if type(timestamp) is not tuple or len(timestamp) < 2:
+            return False
+        if type(timestamp[1]) is not bytes or len(timestamp[1]) == 0:
             return False
 
-        return bytes_are_same(calc_point, self.uuid)
+        # check that it is a valid point for the entropy clock
+        time, point = timestamp[0], timestamp[1]
+        try:
+            calc_point = recursive_next_point(point, time)
+            return bytes_are_same(calc_point, self.uuid)
+        except:
+            return False
 
     def verify_signed_timestamp(self, timestamp: tuple, message: bytes) -> bool:
         """Verify a signed timestamp contains both a valid timestamp and
@@ -493,7 +526,7 @@ class PointClock:
         assert len(data) > 4, 'data must be bytes with len > 4'
 
         time, state = struct.unpack(f'!I{len(data)-4}s', data)
-        calc_state = recursive_add_point(state, time)
+        calc_state = recursive_next_point(state, time)
 
         return cls(uuid=calc_state, state=(time, state))
 
@@ -510,20 +543,18 @@ class VectorPointClock:
 
     def setup(self, node_ids: list[bytes] = None) -> VectorPointClock:
         """Set up the vector clock."""
-        tert(type(node_ids) is list or node_ids is None, \
-            'node_ids must be list of bytes or None')
+        assert type(node_ids) is list or node_ids is None, \
+            'node_ids must be list of bytes or None'
         if node_ids is not None:
             for nid in node_ids:
-                tert(type(nid) is bytes, 'node_ids must be list of bytes or None')
-
-        if self.clocks != {}:
-            return self
+                assert type(nid) is bytes, 'node_ids must be list of bytes or None'
+        assert self.clocks == {}, 'clock has already been setup'
 
         if node_ids is not None:
             self.node_ids = [*node_ids]
 
         for nid in self.node_ids:
-            self.clocks[nid] = PointClock(nid)
+            self.clocks[nid] = PointClock()
 
         return self
 
@@ -554,11 +585,15 @@ class VectorPointClock:
         assert node_id in self.node_ids, 'node_id not part of this clock'
 
         if self.clocks[node_id].state is None:
-            uuid = recursive_add_point(state[1], state[0])
+            uuid = recursive_next_point(state[1], state[0])
             self.clocks[node_id].uuid = uuid
             self.clocks[node_id].state = state
 
         update = {b'uuid': self.uuid}
+        for nid in self.node_ids:
+            clock_state = self.clocks[nid].state
+            if clock_state and clock_state[1]:
+                update[nid] = clock_state
         update[node_id] = state
 
         return update
@@ -575,35 +610,54 @@ class VectorPointClock:
             assert id in self.node_ids or id == b'uuid', 'state includes invalid node_id'
 
         for id in state:
-            if id != b'uuid':
-                if self.clocks[id].state is None:
-                    uuid = recursive_add_point(state[id][1], state[id][0])
-                    self.clocks[id].uuid = uuid
-                    self.clocks[id].state = (0, uuid)
+            if id == b'uuid' or state[id][1] is None:
+                continue
 
-                self.clocks[id].update(state[id])
+            if self.clocks[id].state is None:
+                uuid = recursive_next_point(state[id][1], state[id][0])
+                self.clocks[id].uuid = uuid
+                self.clocks[id].state = (0, uuid)
+
+            self.clocks[id].update(state[id])
 
         return self
 
     def verify(self) -> bool:
         """Verify that all underlying PointClocks are valid."""
-        valid = True
-
         for id in self.node_ids:
-            valid = valid and self.clocks[id].verify()
+            if not self.clocks[id].verify():
+                return False
 
-        return valid
+        return True
+
+    def verify_timestamp(self, timestamp: dict[bytes, bytes|tuple]) -> bool:
+        """Verify that the timestamp is valid."""
+        if b'uuid' not in timestamp or timestamp[b'uuid'] != self.uuid:
+            return False
+
+        for id in [id for id in timestamp if id != b'uuid']:
+            if id not in self.node_ids:
+                return False
+
+            if not self.clocks[id].verify_timestamp(timestamp[id]):
+                return False
+
+        return True
 
     @staticmethod
     def happens_before(ts1: dict, ts2: dict) -> bool:
-        """Determine if ts1 happens before ts2."""
+        """Determine if ts1 happens before ts2. As long as at least
+            one node_id contained in both timestamps has a higher value
+            in ts1 and no node_id shared by both has a higher value in
+            ts2, ts1 happened-before ts2.
+        """
         assert not VectorPointClock.are_incomparable(ts1, ts2), \
             'incomparable timestamps cannot be compared for happens-before relation'
 
         reverse_causality = False
         at_least_one_earlier = False
 
-        for id in ts1:
+        for id in [id for id in ts1 if id in ts2 and id != b'uuid']:
             if ts1[id][0] > ts2[id][0]:
                 reverse_causality = True
             if ts1[id][0] < ts2[id][0]:
@@ -613,7 +667,10 @@ class VectorPointClock:
 
     @staticmethod
     def are_incomparable(ts1: dict, ts2: dict) -> bool:
-        """Determine if ts1 and ts2 are incomparable."""
+        """Determine if ts1 and ts2 are incomparable. As long as the
+            two timestamps share one node_id in common, they are
+            comparable.
+        """
         assert type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]'
         assert type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]'
         assert b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have both have uuids'
@@ -621,17 +678,15 @@ class VectorPointClock:
         if not bytes_are_same(ts1[b'uuid'], ts2[b'uuid']):
             return True
 
-        incomparable = False
-
         for id in ts1:
-            if id not in ts2:
-                incomparable = True
+            if id in ts2:
+                return False
 
         for id in ts2:
-            if id not in ts1:
-                incomparable = True
+            if id in ts1:
+                return False
 
-        return incomparable
+        return True
 
     @staticmethod
     def are_concurrent(ts1: dict, ts2: dict) -> bool:
@@ -647,7 +702,7 @@ class VectorPointClock:
         jsonified = {'uuid': self.uuid.hex()}
 
         for id in self.node_ids:
-            if self.clocks[id].state is not None:
+            if self.clocks[id].state is not None and self.clocks[id].state[1] is not None:
                 jsonified[id.hex()] = self.clocks[id].pack().hex()
             else:
                 jsonified[id.hex()] = None

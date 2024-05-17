@@ -13,6 +13,15 @@ def vert(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
 
+class SecurityError(BaseException):
+    """Exception class for security verification errors."""
+    ...
+
+def sert(condition: bool, message: str) -> None:
+    """Raises SeucurityError with the given message if condition is False."""
+    if not condition:
+        raise SecurityError(message)
+
 # cryptography
 def clamp_scalar(scalar: bytes, from_private_key: bool = False) -> bytes:
     """Make a clamped ed25519 scalar by setting specific bits."""
@@ -59,6 +68,47 @@ def recursive_hash(preimage: bytes, count: int) -> bytes:
         state = sha256(state).digest()
 
     return state
+
+def next_point(point: bytes) -> bytes:
+    """Function to hash and multiply a point."""
+    hashed = sha256(point).digest()
+    scalar = clamp_scalar(hashed)
+    next_point = nacl.bindings.crypto_scalarmult_ed25519(scalar, point)
+    return next_point
+
+def recursive_next_point(point: bytes, count: int) -> bytes:
+    """Recursively call next_point count times."""
+    for _ in range(count):
+        point = next_point(point)
+    return point
+
+def next_scalar(scalar: bytes) -> bytes:
+    """Function to add the hash(point from scalar) + scalar."""
+    point = derive_point_from_scalar(scalar)
+    hashed = clamp_scalar(sha256(point).digest())
+    return nacl.bindings.crypto_core_ed25519_scalar_add(scalar, hashed)
+
+def recursive_next_scalar(scalar: bytes, count: int) -> bytes:
+    """Recursively call next_scalar count times."""
+    for _ in range(count):
+        scalar = next_scalar(scalar)
+    return scalar
+
+def next_hash_point(preimage: bytes, point: bytes) -> tuple[bytes, bytes]:
+    """Function to hash and multiply a point and a preimage.
+        Returns a tuple (next_hash, next_point).
+    """
+    hashed = sha256(preimage + point).digest()
+    scalar = clamp_scalar(hashed)
+    next_point = nacl.bindings.crypto_scalarmult_ed25519(scalar, point)
+    return (hashed, next_point)
+
+def recursive_next_hash_point(preimage: bytes, point: bytes, count: int) -> tuple[bytes, bytes]:
+    """Recursively call next_hash_point count times."""
+    hashed = preimage
+    for _ in range(count):
+        hashed, point = next_hash_point(hashed, point)
+    return (hashed, point)
 
 def recursive_add_point(point: bytes, count: int) -> bytes:
     """Function to recursively add an ed25519 point to itself."""

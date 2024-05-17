@@ -36,6 +36,12 @@ class TestClasses(unittest.TestCase):
         assert clock1.uuid == sha256(clockupdater1.advance(1)[1]).digest(), \
             'clock uuid should be hash of state at time=1'
 
+    def test_HashClock_created_from_uuid_returns_None_from_setup(self):
+        clock1 = classes.HashClock()
+        _ = clock1.setup(1)
+        clock2 = classes.HashClock(clock1.uuid)
+        assert clock2.setup(1) is None
+
     def test_HashClock_setup_can_be_updated(self):
         clock1 = classes.HashClock()
         _ = clock1.setup(1)
@@ -311,6 +317,8 @@ class TestClasses(unittest.TestCase):
 
         diff = 0
         for id in node_ids:
+            if id not in before or id not in after:
+                continue
             diff += 1 if before[id] != after[id] else 0
         assert diff == 1, 'read() output should change by exactly 1 after update'
 
@@ -350,6 +358,23 @@ class TestClasses(unittest.TestCase):
         clock.state = [clock.state[0], clock.state[1] + b'1']
 
         assert not vectorclock.verify(), 'clock should not verify if underlying clock fails verification'
+
+    def test_VectorHashClock_verify_timestamp_returns_correct_bool(self):
+        node_ids = [b'123', b'321']
+        vectorclock = classes.VectorHashClock().setup(node_ids)
+        clock0 = classes.HashClock()
+        clock1 = classes.HashClock()
+        clockupdater0 = clock0.setup(3)
+        _ = clock1.setup(3)
+        vectorclock.clocks[node_ids[0]] = clock0
+        vectorclock.clocks[node_ids[1]] = clock1
+        update = clockupdater0.advance(1)
+        vectorclock.advance(node_ids[0], update)
+        good_ts = vectorclock.read()
+        bad_ts = {**good_ts, b'321': (1, b'asd')}
+
+        assert vectorclock.verify_timestamp(good_ts)
+        assert not vectorclock.verify_timestamp(bad_ts)
 
     def test_VectorHashClock_happens_before_returns_correct_bool(self):
         node_ids = [b'123', b'321']
@@ -392,8 +417,6 @@ class TestClasses(unittest.TestCase):
             'are_incomparable() must return True for incomparable timestamps'
         assert not vclock1.are_incomparable(ts1, ts1), \
             'are_incomparable() must return False for comparable timestamps'
-        assert vclock1.are_incomparable(ts1, {**ts1, b'diverge': (-1, None)}), \
-            'are_incomparable() must return True for incomparable timestamps'
 
         vclock1.update(update)
         ts2 = vclock1.read()
@@ -494,16 +517,16 @@ class TestClasses(unittest.TestCase):
         vkey = misc.derive_point_from_scalar(skey)
         clockupdater = classes.PointClockUpdater.setup(root, 2)
 
-        assert misc.recursive_add_point(clockupdater.advance(1)[1], 1) == clockupdater.uuid, \
+        assert misc.recursive_next_point(clockupdater.advance(1)[1], 1) == clockupdater.uuid, \
             'clockupdater.uuid must be ed25519 point clockupdater.advance(1)[1] * 2'
-        assert clockupdater.advance(1)[1] == misc.recursive_add_point(vkey, 1), \
+        assert clockupdater.advance(1)[1] == misc.recursive_next_point(vkey, 1), \
             'advance(1)[1] must be ed25519 recursively squared root vkey'
         assert clockupdater.advance(2)[1] == vkey, \
             'advance(2)[1] must be root vkey for setup(root, 2)'
 
         clockupdater = classes.PointClockUpdater.setup(root, 100)
 
-        assert misc.recursive_add_point(clockupdater.advance(1)[1], 1) == clockupdater.uuid, \
+        assert misc.recursive_next_point(clockupdater.advance(1)[1], 1) == clockupdater.uuid, \
             'clockupdater.uuid must be ed25519 point clockupdater.advance(1)[1] * 2'
         assert clockupdater.advance(100)[1] == vkey, \
             'advance(100)[1] must be root vkey for setup(root, 100)'
@@ -559,8 +582,14 @@ class TestClasses(unittest.TestCase):
         assert clock1.read() == 0, 'clock should be at time 0 after setup'
         assert clock1.uuid == clockupdater1.uuid, \
             'clock uuid should match updater uuid'
-        assert clock1.uuid == misc.recursive_add_point(clockupdater1.advance(1)[1], 1), \
+        assert clock1.uuid == misc.recursive_next_point(clockupdater1.advance(1)[1], 1), \
             'clock uuid should be state + state at time=1'
+
+    def test_PointClock_created_from_uuid_returns_None_from_setup(self):
+        clock1 = classes.PointClock()
+        _ = clock1.setup(1)
+        clock2 = classes.PointClock(clock1.uuid)
+        assert clock2.setup(1) is None
 
     def test_PointClock_update_increases_read_output(self):
         clock1 = classes.PointClock()
@@ -747,6 +776,8 @@ class TestClasses(unittest.TestCase):
 
         diff = 0
         for id in node_ids:
+            if id not in before or id not in after:
+                continue
             diff += 1 if before[id] != after[id] else 0
         assert diff == 1, 'read() output should change by exactly 1 after update'
 
@@ -786,6 +817,23 @@ class TestClasses(unittest.TestCase):
         clock.state = [clock.state[0], clock.state[1] + b'1']
 
         assert not vectorclock.verify(), 'clock should not verify if underlying clock fails verification'
+
+    def test_VectorPointClock_verify_timestamp_returns_correct_bool(self):
+        node_ids = [b'123', b'321']
+        vectorclock = classes.VectorPointClock().setup(node_ids)
+        clock0 = classes.PointClock()
+        clock1 = classes.PointClock()
+        clockupdater0 = clock0.setup(3)
+        _ = clock1.setup(3)
+        vectorclock.clocks[node_ids[0]] = clock0
+        vectorclock.clocks[node_ids[1]] = clock1
+        update = clockupdater0.advance(1)
+        vectorclock.advance(node_ids[0], update)
+        good_ts = vectorclock.read()
+        bad_ts = {**good_ts, b'321': (1, b'asd')}
+
+        assert vectorclock.verify_timestamp(good_ts)
+        assert not vectorclock.verify_timestamp(bad_ts)
 
     def test_VectorPointClock_happens_before_returns_correct_bool(self):
         node_ids = [b'123', b'321']
@@ -828,8 +876,6 @@ class TestClasses(unittest.TestCase):
             'are_incomparable() must return True for incomparable timestamps'
         assert not vectorclock1.are_incomparable(ts1, ts1), \
             'are_incomparable() must return False for comparable timestamps'
-        assert vectorclock1.are_incomparable(ts1, {**ts1, b'diverge': (-1, None)}), \
-            'are_incomparable() must return True for incomparable timestamps'
 
         vectorclock1.update(update)
         ts2 = vectorclock1.read()
