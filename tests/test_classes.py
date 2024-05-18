@@ -10,7 +10,7 @@ class TestHashClock(unittest.TestCase):
         assert issubclass(classes.HashClock, interfaces.ClockProtocol), \
             'HashClock must implement ClockProtocol'
 
-    def test_setup_returns_HashClockUpdater_with_random_root(self):
+    def test_setup_returns_HashClockUpdater_with_random_seed(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(1)
         clock2 = classes.HashClock()
@@ -20,11 +20,11 @@ class TestHashClock(unittest.TestCase):
             'setup() output should implement ClockUpdaterProtocol'
         assert isinstance(clockupdater2, interfaces.ClockUpdaterProtocol), \
             'setup() output should implement ClockUpdaterProtocol'
-        assert type(clockupdater1.root) is bytes, 'clockupdater root should be bytes'
-        assert type(clockupdater2.root) is bytes, 'clockupdater root should be bytes'
-        assert len(clockupdater1.root) == 16, 'root should be 16 bytes'
-        assert len(clockupdater2.root) == 16, 'root should be 16 bytes'
-        assert clockupdater1.root != clockupdater2.root, 'locks should be uncorrelated'
+        assert type(clockupdater1.seed) is bytes, 'clockupdater seed should be bytes'
+        assert type(clockupdater2.seed) is bytes, 'clockupdater seed should be bytes'
+        assert len(clockupdater1.seed) == 16, 'seed should be 16 bytes'
+        assert len(clockupdater2.seed) == 16, 'seed should be 16 bytes'
+        assert clockupdater1.seed != clockupdater2.seed, 'locks should be uncorrelated'
 
         assert clock1.read() == 0, 'clock should be at time 0 after setup'
         assert clock1.uuid == clockupdater1.uuid, \
@@ -162,9 +162,9 @@ class TestHashClock(unittest.TestCase):
         assert clock1.verify_timestamp(ts)
         assert not clock1.verify_timestamp((1, token_bytes(32)))
 
-    def test_can_be_updated_returns_True_for_terminated_clock_with_setup_root_32(self):
+    def test_can_be_updated_returns_True_for_terminated_clock_with_setup_seed_32(self):
         clock1 = classes.HashClock()
-        clockupdater1 = clock1.setup(1, root_size=32)
+        clockupdater1 = clock1.setup(1, seed_size=32)
         assert clock1.verify()
         assert clock1.can_be_updated()
         assert not clock1.has_terminated()
@@ -195,33 +195,33 @@ class TestHashClockUpdater(unittest.TestCase):
         assert str(e.exception) == 'time must be int <= max_time', \
             'advance(n) where n > max_time should throw exception with matching str'
 
-    def test_HashClockUpdater_advance_returns_chained_hash_from_root(self):
+    def test_HashClockUpdater_advance_returns_chained_hash_from_seed(self):
         clockupdater = classes.HashClockUpdater.setup(token_bytes(16), 2)
 
         assert sha256(clockupdater.advance(1)[1]).digest() == clockupdater.uuid, \
             'clockupdater.uuid must be hash of clockupdater.advance(1)[1]'
-        assert clockupdater.advance(1)[1] == sha256(clockupdater.root).digest(), \
-            'advance(1)[1] must be hash of root for setup(root, 2)'
-        assert clockupdater.advance(2)[1] == clockupdater.root, \
-            'advance(2)[1] must be root for setup(root, 2)'
+        assert clockupdater.advance(1)[1] == sha256(clockupdater.seed).digest(), \
+            'advance(1)[1] must be hash of seed for setup(seed, 2)'
+        assert clockupdater.advance(2)[1] == clockupdater.seed, \
+            'advance(2)[1] must be seed for setup(seed, 2)'
 
         clockupdater = classes.HashClockUpdater.setup(token_bytes(16), 3)
 
         assert sha256(clockupdater.advance(1)[1]).digest() == clockupdater.uuid, \
             'clockupdater.uuid must be hash of clockupdater.advance(1)[1]'
-        assert clockupdater.advance(1)[1] == sha256(sha256(clockupdater.root).digest()).digest(), \
-            'clockupdater.advance(1)[1] must be hash of hash of root for setup(root, 3)'
-        assert clockupdater.advance(2)[1] == sha256(clockupdater.root).digest(), \
-            'advance(2)[1] must be hash of root for setup(root, 3)'
-        assert clockupdater.advance(3)[1] == clockupdater.root, \
-            'advance(3)[1] must be root for setup(root, 3)'
+        assert clockupdater.advance(1)[1] == sha256(sha256(clockupdater.seed).digest()).digest(), \
+            'clockupdater.advance(1)[1] must be hash of hash of seed for setup(seed, 3)'
+        assert clockupdater.advance(2)[1] == sha256(clockupdater.seed).digest(), \
+            'advance(2)[1] must be hash of seed for setup(seed, 3)'
+        assert clockupdater.advance(3)[1] == clockupdater.seed, \
+            'advance(3)[1] must be seed for setup(seed, 3)'
 
         clockupdater = classes.HashClockUpdater.setup(token_bytes(16), 100)
 
         assert sha256(clockupdater.advance(1)[1]).digest() == clockupdater.uuid, \
             'clockupdater.uuid must be hash of clockupdater.advance(1)[1]'
-        assert clockupdater.advance(100)[1] == clockupdater.root, \
-            'advance(100)[1] must be root for setup(root, 100)'
+        assert clockupdater.advance(100)[1] == clockupdater.seed, \
+            'advance(100)[1] must be seed for setup(seed, 100)'
 
     def test_HashClockUpdater_pack_returns_bytes(self):
         clockupdater = classes.HashClockUpdater.setup(token_bytes(16), 3)
@@ -236,7 +236,7 @@ class TestHashClockUpdater(unittest.TestCase):
 
         assert isinstance(unpacked, classes.HashClockUpdater)
         assert clockupdater.uuid == unpacked.uuid
-        assert clockupdater.root == unpacked.root
+        assert clockupdater.seed == unpacked.seed
         assert clockupdater.max_time == unpacked.max_time
 
 
@@ -551,29 +551,29 @@ class TestPointClockUpdater(unittest.TestCase):
         assert str(e.exception) == 'time must be int <= max_time', \
             'advance(n) where n > max_time should throw exception with matching str'
 
-    def test_advance_returns_chained_point_double_from_root_vkey(self):
-        root = token_bytes(16)
-        skey = misc.derive_key_from_seed(misc.H_small(root))
+    def test_advance_returns_chained_point_double_from_seed_vkey(self):
+        seed = token_bytes(16)
+        skey = misc.derive_key_from_seed(misc.H_small(seed))
         vkey = misc.derive_point_from_scalar(skey)
-        clockupdater = classes.PointClockUpdater.setup(root, 2)
+        clockupdater = classes.PointClockUpdater.setup(seed, 2)
 
         assert misc.recursive_next_point(clockupdater.advance(1)[1], 1) == clockupdater.uuid, \
             'clockupdater.uuid must be ed25519 point clockupdater.advance(1)[1] * 2'
         assert clockupdater.advance(1)[1] == misc.recursive_next_point(vkey, 1), \
-            'advance(1)[1] must be ed25519 recursively squared root vkey'
+            'advance(1)[1] must be ed25519 recursively squared seed vkey'
         assert clockupdater.advance(2)[1] == vkey, \
-            'advance(2)[1] must be root vkey for setup(root, 2)'
+            'advance(2)[1] must be seed vkey for setup(seed, 2)'
 
-        clockupdater = classes.PointClockUpdater.setup(root, 100)
+        clockupdater = classes.PointClockUpdater.setup(seed, 100)
 
         assert misc.recursive_next_point(clockupdater.advance(1)[1], 1) == clockupdater.uuid, \
             'clockupdater.uuid must be ed25519 point clockupdater.advance(1)[1] * 2'
         assert clockupdater.advance(100)[1] == vkey, \
-            'advance(100)[1] must be root vkey for setup(root, 100)'
+            'advance(100)[1] must be seed vkey for setup(seed, 100)'
 
     def test_advance_and_sign_produces_signed_timestamp(self):
-        root = token_bytes(16)
-        clockupdater = classes.PointClockUpdater.setup(root, 2)
+        seed = token_bytes(16)
+        clockupdater = classes.PointClockUpdater.setup(seed, 2)
         message = b'hello world'
         timestamp = clockupdater.advance_and_sign(1, message)
         assert type(timestamp) is tuple and len(timestamp) == 3
@@ -594,7 +594,7 @@ class TestPointClockUpdater(unittest.TestCase):
 
         assert isinstance(unpacked, classes.PointClockUpdater)
         assert clockupdater.uuid == unpacked.uuid
-        assert clockupdater.root == unpacked.root
+        assert clockupdater.seed == unpacked.seed
         assert clockupdater.max_time == unpacked.max_time
 
 
@@ -604,7 +604,7 @@ class TestPointClock(unittest.TestCase):
         assert issubclass(classes.PointClock, interfaces.ClockProtocol), \
             'PointClock must implement ClockProtocol'
 
-    def test_setup_returns_PointClockUpdater_with_random_root(self):
+    def test_setup_returns_PointClockUpdater_with_random_seed(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(1)
         clock2 = classes.PointClock()
@@ -614,11 +614,11 @@ class TestPointClock(unittest.TestCase):
             'setup() output should implement ClockUpdaterProtocol'
         assert isinstance(clockupdater2, interfaces.ClockUpdaterProtocol), \
             'setup() output should implement ClockUpdaterProtocol'
-        assert type(clockupdater1.root) is bytes, 'clockupdater root should be bytes'
-        assert type(clockupdater2.root) is bytes, 'clockupdater root should be bytes'
-        assert len(clockupdater1.root) == 32, 'root should be 32 bytes'
-        assert len(clockupdater2.root) == 32, 'root should be 32 bytes'
-        assert clockupdater1.root != clockupdater2.root, 'clocks should be uncorrelated'
+        assert type(clockupdater1.seed) is bytes, 'clockupdater seed should be bytes'
+        assert type(clockupdater2.seed) is bytes, 'clockupdater seed should be bytes'
+        assert len(clockupdater1.seed) == 32, 'seed should be 32 bytes'
+        assert len(clockupdater2.seed) == 32, 'seed should be 32 bytes'
+        assert clockupdater1.seed != clockupdater2.seed, 'clocks should be uncorrelated'
         assert clockupdater1.uuid != clockupdater2.uuid, 'clocks should be uncorrelated'
 
         assert clock1.read() == 0, 'clock should be at time 0 after setup'

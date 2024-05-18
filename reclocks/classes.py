@@ -23,32 +23,32 @@ import struct
 @dataclass
 class HashClockUpdater:
     """Implementation of the ClockUpdaterProtocol."""
-    root: bytes
+    seed: bytes
     uuid: bytes
     max_time: int
 
     @classmethod
-    def setup(cls, root: bytes, max_time: int) -> HashClockUpdater:
+    def setup(cls, seed: bytes, max_time: int) -> HashClockUpdater:
         """Set up a new instance."""
-        state = recursive_hash(root, max_time)
+        state = recursive_hash(seed, max_time)
 
-        return cls(root=root, uuid=state, max_time=max_time)
+        return cls(seed=seed, uuid=state, max_time=max_time)
 
     def advance(self, time: int) -> tuple[int, bytes]:
         """Create an update that advances the clock to the given time."""
         tert(type(time) is int, 'time must be int <= max_time')
         vert(time <= self.max_time, 'time must be int <= max_time')
 
-        state = recursive_hash(self.root, self.max_time - time)
+        state = recursive_hash(self.seed, self.max_time - time)
 
         return (time, state)
 
     def pack(self) -> bytes:
         """Pack the clock updater into bytes."""
         return struct.pack(
-            f'!I{len(self.root)}s',
+            f'!I{len(self.seed)}s',
             self.max_time,
-            self.root
+            self.seed
         )
 
     @classmethod
@@ -57,9 +57,9 @@ class HashClockUpdater:
         tert(type(data) is bytes, 'data must be bytes with len > 6')
         vert(len(data) > 6, 'data must be bytes with len > 6')
 
-        max_time, root = struct.unpack(f'!I{len(data)-4}s', data)
+        max_time, seed = struct.unpack(f'!I{len(data)-4}s', data)
 
-        return cls.setup(root, max_time)
+        return cls.setup(seed, max_time)
 
 
 @dataclass
@@ -69,7 +69,7 @@ class HashClock:
     state: tuple[int, bytes] = field(default=None)
     updater: HashClockUpdater = field(default=None)
 
-    def setup(self, max_time: int, root_size: int = 16) -> HashClockUpdater|None:
+    def setup(self, max_time: int, seed_size: int = 16) -> HashClockUpdater|None:
         """Set up the instance if it hasn't been setup yet and return
             the updater for the clock. If it has been setup (i.e. has a
             uuid), return the updater if there is one or None.
@@ -79,7 +79,7 @@ class HashClock:
                 self.state = (0, self.uuid)
             return self.updater
 
-        self.updater = HashClockUpdater.setup(token_bytes(root_size), max_time)
+        self.updater = HashClockUpdater.setup(token_bytes(seed_size), max_time)
 
         self.uuid = self.updater.uuid
         self.state = (0, self.uuid)
@@ -369,24 +369,24 @@ class VectorHashClock:
 @dataclass
 class PointClockUpdater:
     """Implementation of the ClockUpdaterProtocol."""
-    root: bytes
+    seed: bytes
     uuid: bytes
     max_time: int
 
     @classmethod
-    def setup(cls, root: bytes, max_time: int) -> PointClockUpdater:
+    def setup(cls, seed: bytes, max_time: int) -> PointClockUpdater:
         """Set up a new instance."""
-        skey = SigningKey(H_small(root))
+        skey = SigningKey(H_small(seed))
         state = recursive_next_point(bytes(skey.verify_key), max_time)
 
-        return cls(root=root, uuid=state, max_time=max_time)
+        return cls(seed=seed, uuid=state, max_time=max_time)
 
     def advance(self, time: int) -> tuple[int, bytes]:
         """Create an update that advances the clock to the given time."""
         tert(type(time) is int, 'time must be int <= max_time')
         vert(time <= self.max_time, 'time must be int <= max_time')
 
-        skey = SigningKey(H_small(self.root))
+        skey = SigningKey(H_small(self.seed))
         state = recursive_next_point(bytes(skey.verify_key), self.max_time - time)
 
         return (time, state)
@@ -401,18 +401,18 @@ class PointClockUpdater:
         tert(type(message) is bytes, 'message must be bytes')
         vert(len(message) > 0, 'message must not be empty')
 
-        x = derive_key_from_seed(H_small(self.root))
+        x = derive_key_from_seed(H_small(self.seed))
         x = recursive_next_scalar(x, self.max_time - time)
         X = derive_point_from_scalar(x)
-        sig = sign_with_scalar(x, message, self.root)
+        sig = sign_with_scalar(x, message, self.seed)
         return (time, X, sig)
 
     def pack(self) -> bytes:
         """Pack the clock updater into bytes."""
         return struct.pack(
-            f'!I{len(self.root)}s',
+            f'!I{len(self.seed)}s',
             self.max_time,
-            self.root
+            self.seed
         )
 
     @classmethod
@@ -421,9 +421,9 @@ class PointClockUpdater:
         tert(type(data) is bytes, 'data must be bytes with len > 6')
         vert(len(data) > 6, 'data must be bytes with len > 6')
 
-        max_time, root = struct.unpack(f'!I{len(data)-4}s', data)
+        max_time, seed = struct.unpack(f'!I{len(data)-4}s', data)
 
-        return cls.setup(root, max_time)
+        return cls.setup(seed, max_time)
 
 
 @dataclass
@@ -433,7 +433,7 @@ class PointClock:
     state: tuple[int, bytes] = field(default=None)
     updater: PointClockUpdater = field(default=None)
 
-    def setup(self, max_time: int, root_size: int = 32) -> PointClockUpdater|None:
+    def setup(self, max_time: int, seed_size: int = 32) -> PointClockUpdater|None:
         """Set up the instance if it hasn't been setup yet and return
             the updater for the clock. If it has been setup (i.e. has a
             uuid), return the updater if there is one or None.
@@ -443,7 +443,7 @@ class PointClock:
                 self.state = (0, self.uuid)
             return self.updater
 
-        self.updater = PointClockUpdater.setup(token_bytes(root_size), max_time)
+        self.updater = PointClockUpdater.setup(token_bytes(seed_size), max_time)
 
         self.uuid = self.updater.uuid
         self.state = (0, self.uuid)
