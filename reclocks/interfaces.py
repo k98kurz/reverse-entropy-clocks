@@ -37,6 +37,16 @@ class ClockProtocol(Protocol):
         """Read the current state of the clock."""
         ...
 
+    @staticmethod
+    def happens_before(ts1: tuple, ts2: tuple) -> bool:
+        """Determine if ts1 happens before ts2."""
+        ...
+
+    @staticmethod
+    def are_incomparable(ts1: dict, ts2: dict) -> bool:
+        """Determine if ts1 and ts2 are incomparable."""
+        ...
+
     def update(self, state: tuple[int, bytes]) -> ClockProtocol:
         """Update the clock if the state verifies."""
         ...
