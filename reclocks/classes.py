@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from hashclock.misc import (
+from reclocks.misc import (
     bytes_are_same,
     derive_point_from_scalar,
     recursive_hash,

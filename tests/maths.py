@@ -12,7 +12,7 @@ class RunMathematicalProofs(unittest.TestCase):
         seed = token_bytes(32)
         x = misc.derive_key_from_seed(seed)
         Y = misc.derive_point_from_scalar(x)
-        Y2 = misc.recursive_add_point(Y, 1)
+        Y2 = recursive_add_point(Y, 1)
         Y_2 = divide_point_by_two(Y2)
         assert Y == Y_2, f'\n{Y.hex()}\n{Y_2.hex()}'
 
