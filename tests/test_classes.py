@@ -12,9 +12,9 @@ class TestHashClock(unittest.TestCase):
 
     def test_setup_returns_HashClockUpdater_with_random_seed(self):
         clock1 = classes.HashClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         clock2 = classes.HashClock()
-        clockupdater2 = clock2.setup(1)
+        clockupdater2 = clock2.setup(5)
 
         assert isinstance(clockupdater1, interfaces.ClockUpdaterProtocol), \
             'setup() output should implement ClockUpdaterProtocol'
@@ -34,13 +34,13 @@ class TestHashClock(unittest.TestCase):
 
     def test_created_from_uuid_returns_None_from_setup(self):
         clock1 = classes.HashClock()
-        _ = clock1.setup(1)
+        _ = clock1.setup(5)
         clock2 = classes.HashClock(clock1.uuid)
-        assert clock2.setup(1) is None
+        assert clock2.setup(5) is None
 
     def test_setup_can_be_updated(self):
         clock1 = classes.HashClock()
-        _ = clock1.setup(1)
+        _ = clock1.setup(5)
 
         assert clock1.can_be_updated(), 'can_be_updated() should be True after setup'
         assert not clock1.has_terminated(), 'has_terminated() should return False after setup'
@@ -96,11 +96,11 @@ class TestHashClock(unittest.TestCase):
 
     def test_can_be_updated_returns_False_for_terminated_clock(self):
         clock1 = classes.HashClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
 
         assert clock1.read() == 0, 'read() starts at 0'
-        clock1.update(clockupdater1.advance(1))
-        assert clock1.read() == 1, 'read() increments after update'
+        clock1.update(clockupdater1.advance(5))
+        assert clock1.read() == 5, 'read() increases after update'
         assert not clock1.can_be_updated(), 'can_be_updated() should return False'
         assert clock1.has_terminated(), 'has_terminated() should return True'
 
@@ -124,7 +124,7 @@ class TestHashClock(unittest.TestCase):
 
     def test_unpack_works_with_pack_output(self):
         clock1 = classes.HashClock()
-        _ = clock1.setup(1)
+        _ = clock1.setup(5)
 
         packed = clock1.pack()
         unpacked = classes.HashClock.unpack(packed)
@@ -140,7 +140,7 @@ class TestHashClock(unittest.TestCase):
         clock1 = classes.HashClock()
         assert clock1.verify(), 'verify() should return True for valid state'
 
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         assert clock1.verify(), 'verify() should return True for valid state'
 
         clock1.update(clockupdater1.advance(1))
@@ -149,7 +149,7 @@ class TestHashClock(unittest.TestCase):
 
     def test_verify_returns_False_for_invalid_state(self):
         clock1 = classes.HashClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         clock1.update(clockupdater1.advance(1))
         clock1.state = (clock1.state[0], clock1.state[1] + b'1')
 
@@ -157,7 +157,7 @@ class TestHashClock(unittest.TestCase):
 
     def test_verify_timestamp_returns_True_for_valid_and_False_for_invalid_ts(self):
         clock1 = classes.HashClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         ts = clockupdater1.advance(1)
         assert clock1.verify_timestamp(ts)
         assert not clock1.verify_timestamp((1, token_bytes(32)))
@@ -606,9 +606,9 @@ class TestPointClock(unittest.TestCase):
 
     def test_setup_returns_PointClockUpdater_with_random_seed(self):
         clock1 = classes.PointClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         clock2 = classes.PointClock()
-        clockupdater2 = clock2.setup(1)
+        clockupdater2 = clock2.setup(5)
 
         assert isinstance(clockupdater1, interfaces.ClockUpdaterProtocol), \
             'setup() output should implement ClockUpdaterProtocol'
@@ -629,9 +629,9 @@ class TestPointClock(unittest.TestCase):
 
     def test_created_from_uuid_returns_None_from_setup(self):
         clock1 = classes.PointClock()
-        _ = clock1.setup(1)
+        _ = clock1.setup(5)
         clock2 = classes.PointClock(clock1.uuid)
-        assert clock2.setup(1) is None
+        assert clock2.setup(5) is None
 
     def test_update_increases_read_output(self):
         clock1 = classes.PointClock()
@@ -694,7 +694,7 @@ class TestPointClock(unittest.TestCase):
 
     def test_unpack_works_with_pack_output(self):
         clock1 = classes.PointClock()
-        _ = clock1.setup(1)
+        _ = clock1.setup(5)
 
         packed = clock1.pack()
         unpacked = classes.PointClock.unpack(packed)
@@ -710,7 +710,7 @@ class TestPointClock(unittest.TestCase):
         clock1 = classes.PointClock()
         assert clock1.verify(), 'verify() should return True for valid state'
 
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         assert clock1.verify(), 'verify() should return True for valid state'
 
         clock1.update(clockupdater1.advance(1))
@@ -719,7 +719,7 @@ class TestPointClock(unittest.TestCase):
 
     def test_verify_returns_False_for_invalid_state(self):
         clock1 = classes.PointClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         clock1.update(clockupdater1.advance(1))
         clock1.state = (clock1.state[0], clock1.state[1] + b'1')
 
@@ -727,14 +727,14 @@ class TestPointClock(unittest.TestCase):
 
     def test_verify_timestamp_returns_True_for_valid_and_False_for_invalid_ts(self):
         clock1 = classes.PointClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         ts = clockupdater1.advance(1)
         assert clock1.verify_timestamp(ts)
         assert not clock1.verify_timestamp((1, token_bytes(32)))
 
     def test_verify_signed_update_returns_True_for_valid_and_False_for_invalid_signed_ts(self):
         clock1 = classes.PointClock()
-        clockupdater1 = clock1.setup(1)
+        clockupdater1 = clock1.setup(5)
         message = b'hello world'
         signedts = clockupdater1.advance_and_sign(1, message)
         assert clock1.verify_signed_timestamp(signedts, message)
@@ -1025,6 +1025,50 @@ class TestVectorPointClock(unittest.TestCase):
         assert unpacked.uuid == vectorclock.uuid, 'unpacked must have same uuid as source vectorclock'
         assert vectorclock.are_concurrent(vectorclock.read(), unpacked.read()), \
             'timestamps must be concurrent between unpacked and source vectorclock'
+
+    def test_e2e_with_signatures(self):
+        """This demonstrates a decent way to use this in practice."""
+        # simulate setting up clocks independently
+        clocks = [classes.PointClock() for _ in range(5)]
+        updaters = [clock.setup(256) for clock in clocks]
+
+        # compile the ids
+        node_ids = [clock.uuid for clock in clocks]
+        uuids = { nid: nid for nid in node_ids }
+        root_uuid = sha256(b''.join(node_ids)).digest()
+
+        # simulate creating a vector clock at each node
+        vectorclocks = [
+            classes.VectorPointClock(root_uuid).setup(node_ids, uuids)
+            for _ in node_ids
+        ]
+
+        # make timestamps
+        ts0 = [vc.read() for vc in vectorclocks]
+        assert all([ts0[0] == ts for ts in ts0]), 'timestamps should be the same'
+
+        # create some updates
+        message = b'hello world'
+        updates = [
+            vectorclocks[i].advance(
+                updaters[i].uuid,
+                updaters[i].advance_and_sign(1, message)
+            )
+            for i in range(len(node_ids))
+        ]
+
+        # verify every update at each node and then update
+        for u in updates:
+            for vc in vectorclocks:
+                assert vc.verify_signed_timestamp(u, message)
+                vc.update(u)
+
+        # check timestamps are all the same
+        ts1 = [vc.read() for vc in vectorclocks]
+        assert all([ts1[0] == ts for ts in ts1]), 'timestamps should be the same'
+
+        # ensure that time moved forward
+        assert vectorclocks[0].happens_before(ts0[0], ts1[0]), 'time should move forward'
 
 
 if __name__ == '__main__':

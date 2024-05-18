@@ -64,7 +64,10 @@ def next_point(point: bytes) -> bytes:
     """Function to hash and multiply a point."""
     hashed = sha256(point).digest()
     scalar = clamp_scalar(hashed)
-    next_point = nacl.bindings.crypto_scalarmult_ed25519(scalar, point)
+    next_point = nacl.bindings.crypto_core_ed25519_add(
+        point,
+        derive_point_from_scalar(scalar)
+    )
     return next_point
 
 def recursive_next_point(point: bytes, count: int) -> bytes:

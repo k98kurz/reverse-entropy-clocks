@@ -660,6 +660,28 @@ class VectorPointClock:
 
         return True
 
+    def verify_signed_timestamp(
+            self, timestamp: dict[bytes, bytes|tuple], message: bytes) -> bool:
+        """Verify that a timestamp which includes a signature is valid."""
+        if b'uuid' not in timestamp or timestamp[b'uuid'] != self.uuid:
+            return False
+
+        found_signed_timestamp = False
+        for id in [id for id in timestamp if id != b'uuid']:
+            if id not in self.node_ids:
+                return False
+
+            if not self.clocks[id].verify_timestamp(timestamp[id]):
+                return False
+
+            if len(timestamp[id]) == 3:
+                found_signed_timestamp = True
+                if not self.clocks[id].verify_signed_timestamp(timestamp[id], message):
+                    return False
+
+        vert(found_signed_timestamp, 'timetstamp did not include a signature')
+        return True
+
     @staticmethod
     def happens_before(ts1: dict, ts2: dict) -> bool:
         """Determine if ts1 happens before ts2. As long as at least
