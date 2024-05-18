@@ -89,7 +89,26 @@ class HashClock:
 
     def read(self) -> tuple[int, bytes]:
         """Read the current state of the clock."""
-        return self.state if self.state is not None else (-1, None)
+        if not self.uuid:
+            return (-1, None)
+        return self.state if self.state is not None else (0, self.uuid)
+
+    @staticmethod
+    def happens_before(ts1: tuple, ts2: tuple) -> bool:
+        """Determine if ts1 happens before ts2."""
+        vert(not HashClock.are_incomparable(ts1, ts2),
+            'incomparable timestamps cannot be compared for happens-before relation')
+
+        return ts1[0] < ts2[0]
+
+    @staticmethod
+    def are_incomparable(ts1: tuple[int, bytes], ts2: tuple[int, bytes]) -> bool:
+        """Determine if ts1 and ts2 are incomparable."""
+        tert(type(ts1) is type(ts2) is tuple, 'ts1 and ts2 must be tuple[int, bytes]')
+        vert(len(ts1) == 2 == len(ts2), 'ts1 and ts2 must each have len == 2')
+        id1 = recursive_hash(ts1[1], ts1[0])
+        id2 = recursive_hash(ts2[1], ts2[0])
+        return not bytes_are_same(id1, id2)
 
     def can_be_updated(self) -> bool:
         """Determines if the clock can possibly receive further updates."""
@@ -155,7 +174,7 @@ class HashClock:
         return cls(uuid=calc_state, state=(time, state))
 
     def __repr__(self) -> str:
-        return f'time={self.read()}; uuid={self.uuid.hex()}; ' + \
+        return f'time={self.read()[0]}; uuid={self.uuid.hex()}; ' + \
             f'state={self.state[1].hex()}; {self.has_terminated()=}'
 
 
@@ -470,7 +489,26 @@ class PointClock:
 
     def read(self) -> tuple[int, bytes]:
         """Read the current state of the clock."""
-        return self.state if self.state is not None else (-1, None)
+        if not self.uuid:
+            return (-1, None)
+        return self.state if self.state is not None else (0, self.uuid)
+
+    @staticmethod
+    def happens_before(ts1: tuple, ts2: tuple) -> bool:
+        """Determine if ts1 happens before ts2."""
+        vert(not PointClock.are_incomparable(ts1, ts2),
+            'incomparable timestamps cannot be compared for happens-before relation')
+
+        return ts1[0] < ts2[0]
+
+    @staticmethod
+    def are_incomparable(ts1: tuple[int, bytes], ts2: tuple[int, bytes]) -> bool:
+        """Determine if ts1 and ts2 are incomparable."""
+        tert(type(ts1) is type(ts2) is tuple, 'ts1 and ts2 must be tuple[int, bytes]')
+        vert(len(ts1) >= 2 and len(ts2) >= 2, 'ts1 and ts2 must each have len >= 2')
+        id1 = recursive_next_point(ts1[1], ts1[0])
+        id2 = recursive_next_point(ts2[1], ts2[0])
+        return not bytes_are_same(id1, id2)
 
     def update(self, state: tuple[int, bytes]) -> PointClock:
         """Update the clock if the state verifies."""
@@ -553,8 +591,8 @@ class PointClock:
         return cls(uuid=calc_state, state=(time, state))
 
     def __repr__(self) -> str:
-        return f'time={self.read()}; uuid={self.uuid.hex()}; ' + \
-            f'state={self.state[1].hex()}; {self.has_terminated()=}'
+        return f'time={self.read()[0]}; uuid={self.uuid.hex()}; ' + \
+            f'state={self.state[1].hex()}'
 
 
 @dataclass

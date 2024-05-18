@@ -45,6 +45,20 @@ class TestHashClock(unittest.TestCase):
         assert clock1.can_be_updated(), 'can_be_updated() should be True after setup'
         assert not clock1.has_terminated(), 'has_terminated() should return False after setup'
 
+    def test_happens_before_and_are_incomparable_work_correctly(self):
+        clock1 = classes.HashClock()
+        clock2 = classes.HashClock()
+        updater1 = clock1.setup(12)
+        _ = clock2.setup(12)
+        ts1 = clock1.read()
+        clock1.update(updater1.advance(2))
+        ts2 = clock1.read()
+        assert classes.HashClock.are_incomparable(ts1, clock2.read())
+        assert not classes.HashClock.are_incomparable(ts1, ts2)
+        assert classes.HashClock.happens_before(ts1, ts2)
+        assert not classes.HashClock.happens_before(ts2, ts1)
+        assert not classes.HashClock.happens_before(ts1, ts1)
+
     def test_update_increases_read_output(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(3)
@@ -632,6 +646,20 @@ class TestPointClock(unittest.TestCase):
         _ = clock1.setup(5)
         clock2 = classes.PointClock(clock1.uuid)
         assert clock2.setup(5) is None
+
+    def test_happens_before_and_are_incomparable_work_correctly(self):
+        clock1 = classes.PointClock()
+        clock2 = classes.PointClock()
+        updater1 = clock1.setup(12)
+        _ = clock2.setup(12)
+        ts1 = clock1.read()
+        clock1.update(updater1.advance(2))
+        ts2 = clock1.read()
+        assert classes.PointClock.are_incomparable(ts1, clock2.read())
+        assert not classes.PointClock.are_incomparable(ts1, ts2)
+        assert classes.PointClock.happens_before(ts1, ts2)
+        assert not classes.PointClock.happens_before(ts2, ts1)
+        assert not classes.PointClock.happens_before(ts1, ts1)
 
     def test_update_increases_read_output(self):
         clock1 = classes.PointClock()
