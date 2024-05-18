@@ -22,9 +22,17 @@ Set up the instance if it hasn't been set up yet and return the updater for the
 clock. If it has been set up (i.e. has a uuid), return the updater if there is
 one or None.
 
-##### `read() -> int:`
+##### `read() -> tuple[int, bytes]:`
 
 Read the current state of the clock.
+
+##### `@staticmethod happens_before(ts1: tuple, ts2: tuple) -> bool:`
+
+Determine if ts1 happens before ts2.
+
+##### `@staticmethod are_incomparable(ts1: tuple[int, bytes], ts2: tuple[int, bytes]) -> bool:`
+
+Determine if ts1 and ts2 are incomparable.
 
 ##### `can_be_updated() -> bool:`
 
@@ -178,9 +186,17 @@ Set up the instance if it hasn't been setup yet and return the updater for the
 clock. If it has been setup (i.e. has a uuid), return the updater if there is
 one or None.
 
-##### `read() -> int:`
+##### `read() -> tuple[int, bytes]:`
 
 Read the current state of the clock.
+
+##### `@staticmethod happens_before(ts1: tuple, ts2: tuple) -> bool:`
+
+Determine if ts1 happens before ts2.
+
+##### `@staticmethod are_incomparable(ts1: tuple[int, bytes], ts2: tuple[int, bytes]) -> bool:`
+
+Determine if ts1 and ts2 are incomparable.
 
 ##### `update(state: tuple[int, bytes]) -> PointClock:`
 
