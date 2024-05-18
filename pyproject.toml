@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reclocks"
+version = "0.1.0"
+authors = [
+  { name="k98kurz", email="k98kurz@gmail.com" },
+]
+dependencies = [
+  "PyNaCl>=1.5.0"
+]
+description = "Reverse entropy clocks traverse causality chains backward."
+readme = "readme.md"
+requires-python = ">=3.10"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: ISC License (ISCL)",
+  "Operating System :: OS Independent",
+  "Topic :: Security :: Cryptography",
+  "Topic :: System :: Networking :: Time Synchronization",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/k98kurz/reverse-entropy-clocks"
+"Bug Tracker" = "https://github.com/k98kurz/reverse-entropy-clocks/issues"
