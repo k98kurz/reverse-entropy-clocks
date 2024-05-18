@@ -80,11 +80,14 @@ of as a permissioned CRDT since only those who know the seed and max_time can
 advance the clock.
 
 The VectorHashClock class can be used to create vector clocks using the
-HashClock mechanism underneath. Additionally, a MapHashClock class will extend
-the VectorHashClock idea to not require all node IDs to be included in the
-setup; i.e. new nodes will be able to join the MapHashClock after setup by
+HashClock mechanism underneath.Additionally, a VectorPointClock class can be
+used to create vector clocks using the PointClock mechanism underneath.
+
+If there is sufficient interest, perhaps I will make a MapHashClock class to
+extend the VectorHashClock idea to not require all node IDs to be included in
+the setup; i.e. new nodes would be able to join the MapHashClock after setup by
 issuing an update referencing the clock's uuid, the node id, and the node's
-HashLock state tuple. A further optimization will be created in a ChainHashClock
+HashLock state tuple. A further optimization could be made in a ChainHashClock
 class to implement the chain clock as described by Agarwal and Garg in their
 paper "Efficient Dependency Tracking for Relevant Events in Concurrent Systems".
 
