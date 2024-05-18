@@ -87,9 +87,9 @@ class HashClock:
 
         return self.updater
 
-    def read(self) -> int:
+    def read(self) -> tuple[int, bytes]:
         """Read the current state of the clock."""
-        return self.state[0] if self.state is not None else -1
+        return self.state if self.state is not None else (-1, None)
 
     def can_be_updated(self) -> bool:
         """Determines if the clock can possibly receive further updates."""
@@ -468,9 +468,9 @@ class PointClock:
 
         return self.updater
 
-    def read(self) -> int:
+    def read(self) -> tuple[int, bytes]:
         """Read the current state of the clock."""
-        return self.state[0] if self.state is not None else -1
+        return self.state if self.state is not None else (-1, None)
 
     def update(self, state: tuple[int, bytes]) -> PointClock:
         """Update the clock if the state verifies."""

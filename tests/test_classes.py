@@ -26,7 +26,7 @@ class TestHashClock(unittest.TestCase):
         assert len(clockupdater2.seed) == 16, 'seed should be 16 bytes'
         assert clockupdater1.seed != clockupdater2.seed, 'locks should be uncorrelated'
 
-        assert clock1.read() == 0, 'clock should be at time 0 after setup'
+        assert clock1.read()[0] == 0, 'clock should be at time 0 after setup'
         assert clock1.uuid == clockupdater1.uuid, \
             'clock uuid should match updater uuid'
         assert clock1.uuid == sha256(clockupdater1.advance(1)[1]).digest(), \
@@ -49,44 +49,44 @@ class TestHashClock(unittest.TestCase):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(3)
 
-        assert clock1.read() == 0
+        assert clock1.read()[0] == 0
         clock1.update(clockupdater1.advance(1))
-        assert clock1.read() == 1
+        assert clock1.read()[0] == 1
         clock1.update(clockupdater1.advance(2))
-        assert clock1.read() == 2
+        assert clock1.read()[0] == 2
         clock1.update(clockupdater1.advance(3))
-        assert clock1.read() == 3
+        assert clock1.read()[0] == 3
 
     def test_update_is_idempotent(self):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(3)
 
-        assert clock1.read() == 0, 'clock should be at time 0 after setup'
+        assert clock1.read()[0] == 0, 'clock should be at time 0 after setup'
         update1 = clockupdater1.advance(1)
         clock1.update(update1)
-        assert clock1.read() == 1, 'clock should be at time 1 after update1'
+        assert clock1.read()[0] == 1, 'clock should be at time 1 after update1'
         clock1.update(update1)
         clock1.update(update1)
-        assert clock1.read() == 1, 'no change after update applied many times'
+        assert clock1.read()[0] == 1, 'no change after update applied many times'
 
         update2 = clockupdater1.advance(2)
         clock1.update(update2)
-        assert clock1.read() == 2, 'change after next update'
+        assert clock1.read()[0] == 2, 'change after next update'
         clock1.update(update1)
-        assert clock1.read() == 2, 'no change after reapplying old update'
+        assert clock1.read()[0] == 2, 'no change after reapplying old update'
 
     def test_update_rejects_invalid_updates(self):
         clock1, clock2 = classes.HashClock(), classes.HashClock()
         clockupdater1 = clock1.setup(2)
         clockupdater2 = clock2.setup(2)
 
-        assert clock1.read() == 0
+        assert clock1.read()[0] == 0
         clock1.update(clockupdater2.advance(1))
-        assert clock1.read() == 0
+        assert clock1.read()[0] == 0
 
-        assert clock2.read() == 0
+        assert clock2.read()[0] == 0
         clock2.update(clockupdater1.advance(1))
-        assert clock2.read() == 0
+        assert clock2.read()[0] == 0
 
     def test_can_be_updated_and_has_terminated_return_False_for_unsetup_clock(self):
         clock1 = classes.HashClock()
@@ -98,9 +98,9 @@ class TestHashClock(unittest.TestCase):
         clock1 = classes.HashClock()
         clockupdater1 = clock1.setup(5)
 
-        assert clock1.read() == 0, 'read() starts at 0'
+        assert clock1.read()[0] == 0, 'read() starts at 0'
         clock1.update(clockupdater1.advance(5))
-        assert clock1.read() == 5, 'read() increases after update'
+        assert clock1.read()[0] == 5, 'read() increases after update'
         assert not clock1.can_be_updated(), 'can_be_updated() should return False'
         assert clock1.has_terminated(), 'has_terminated() should return True'
 
@@ -621,7 +621,7 @@ class TestPointClock(unittest.TestCase):
         assert clockupdater1.seed != clockupdater2.seed, 'clocks should be uncorrelated'
         assert clockupdater1.uuid != clockupdater2.uuid, 'clocks should be uncorrelated'
 
-        assert clock1.read() == 0, 'clock should be at time 0 after setup'
+        assert clock1.read()[0] == 0, 'clock should be at time 0 after setup'
         assert clock1.uuid == clockupdater1.uuid, \
             'clock uuid should match updater uuid'
         assert clock1.uuid == misc.recursive_next_point(clockupdater1.advance(1)[1], 1), \
@@ -637,44 +637,44 @@ class TestPointClock(unittest.TestCase):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(4)
 
-        assert clock1.read() == 0
+        assert clock1.read()[0] == 0
         clock1.update(clockupdater1.advance(1))
-        assert clock1.read() == 1
+        assert clock1.read()[0] == 1
         clock1.update(clockupdater1.advance(2))
-        assert clock1.read() == 2
+        assert clock1.read()[0] == 2
         clock1.update(clockupdater1.advance(3))
-        assert clock1.read() == 3
+        assert clock1.read()[0] == 3
 
     def test_update_is_idempotent(self):
         clock1 = classes.PointClock()
         clockupdater1 = clock1.setup(3)
 
-        assert clock1.read() == 0, 'clock should be at time 0 after setup'
+        assert clock1.read()[0] == 0, 'clock should be at time 0 after setup'
         timestamp1 = clockupdater1.advance(1)
         clock1.update(timestamp1)
-        assert clock1.read() == 1, 'clock should be at time 1 after timestamp1'
+        assert clock1.read()[0] == 1, 'clock should be at time 1 after timestamp1'
         clock1.update(timestamp1)
         clock1.update(timestamp1)
-        assert clock1.read() == 1, 'no change after update applied many times'
+        assert clock1.read()[0] == 1, 'no change after update applied many times'
 
         timestamp2 = clockupdater1.advance(2)
         clock1.update(timestamp2)
-        assert clock1.read() == 2, 'change after next update'
+        assert clock1.read()[0] == 2, 'change after next update'
         clock1.update(timestamp1)
-        assert clock1.read() == 2, 'no change after reapplying old update'
+        assert clock1.read()[0] == 2, 'no change after reapplying old update'
 
     def test_update_rejects_invalid_updates(self):
         clock1, clock2 = classes.PointClock(), classes.PointClock()
         clockupdater1 = clock1.setup(2)
         clockupdater2 = clock2.setup(2)
 
-        assert clock1.read() == 0
+        assert clock1.read()[0] == 0
         clock1.update(clockupdater2.advance(1))
-        assert clock1.read() == 0
+        assert clock1.read()[0] == 0
 
-        assert clock2.read() == 0
+        assert clock2.read()[0] == 0
         clock2.update(clockupdater1.advance(1))
-        assert clock2.read() == 0
+        assert clock2.read()[0] == 0
 
     def test_pack_returns_bytes(self):
         clock1 = classes.PointClock()

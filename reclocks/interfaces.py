@@ -33,7 +33,7 @@ class ClockProtocol(Protocol):
         """
         ...
 
-    def read(self) -> int:
+    def read(self) -> tuple[int, bytes]:
         """Read the current state of the clock."""
         ...
 
