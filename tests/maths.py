@@ -1,6 +1,6 @@
 from hashlib import sha256
 from secrets import token_bytes
-from context import classes, interfaces, misc
+from context import misc
 import nacl.bindings
 import unittest
 
@@ -16,6 +16,34 @@ class RunMathematicalProofs(unittest.TestCase):
         Y_2 = divide_point_by_two(Y2)
         assert Y == Y_2, f'\n{Y.hex()}\n{Y_2.hex()}'
 
+
+def recursive_add_point(point: bytes, count: int) -> bytes:
+    """Function to recursively add an ed25519 point to itself."""
+    misc.tert(type(point) is bytes, 'point must be bytes')
+    misc.tert(type(count) is int, 'count must be int >= 0')
+    misc.vert(count >= 0, 'count must be int >= 0')
+
+    misc.vert(nacl.bindings.crypto_core_ed25519_is_valid_point(point),
+         'point must be a valid ed25519 point')
+
+    for _ in range(count):
+        point = nacl.bindings.crypto_core_ed25519_add(point, point)
+
+    return point
+
+def recursive_add_scalar(scalar: bytes, count: int) -> bytes:
+    """Function to recursively add an ed25519 scalar to itself."""
+    misc.tert(type(scalar) is bytes, 'scalar must be bytes')
+    misc.tert(type(count) is int, 'count must be int >= 0')
+    misc.vert(count >= 0, 'count must be int >= 0')
+
+    misc.vert(nacl.bindings.crypto_core_ed25519_SCALARBYTES == len(scalar),
+         'scalar must be a valid ed25519 scalar')
+
+    for _ in range(count):
+        scalar = nacl.bindings.crypto_core_ed25519_scalar_add(scalar, scalar)
+
+    return scalar
 
 def divide_point_by_two(point: bytes) -> bytes:
     """Divides a point by the scalar equivalent of 2.

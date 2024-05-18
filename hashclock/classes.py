@@ -13,7 +13,6 @@ from hashclock.misc import (
     VerifyKey,
     tert,
     vert,
-    sert,
 )
 from secrets import token_bytes
 from uuid import uuid4
@@ -37,8 +36,8 @@ class HashClockUpdater:
 
     def advance(self, time: int) -> tuple[int, bytes]:
         """Create an update that advances the clock to the given time."""
-        assert type(time) is int, 'time must be int <= max_time'
-        assert time <= self.max_time, 'time must be int <= max_time'
+        tert(type(time) is int, 'time must be int <= max_time')
+        vert(time <= self.max_time, 'time must be int <= max_time')
 
         state = recursive_hash(self.root, self.max_time - time)
 
@@ -55,8 +54,8 @@ class HashClockUpdater:
     @classmethod
     def unpack(cls, data: bytes) -> HashClockUpdater:
         """Unpack a clock updater from bytes."""
-        assert type(data) is bytes, 'data must be bytes with len > 6'
-        assert len(data) > 6, 'data must be bytes with len > 6'
+        tert(type(data) is bytes, 'data must be bytes with len > 6')
+        vert(len(data) > 6, 'data must be bytes with len > 6')
 
         max_time, root = struct.unpack(f'!I{len(data)-4}s', data)
 
@@ -101,9 +100,9 @@ class HashClock:
 
     def update(self, state: tuple[int, bytes]) -> HashClock:
         """Update the clock if the state verifies."""
-        assert type(state) in (tuple, list), \
-            'states must be tuple or list of (int, bytes)'
-        assert self.uuid is not None, 'cannot update clock without valid uuid'
+        tert(type(state) in (tuple, list),
+            'states must be tuple or list of (int, bytes)')
+        tert(type(self.uuid) is bytes, 'cannot update clock without valid uuid')
 
         # ignore old updates
         if self.state and self.state[0] is not None and state[0] <= self.state[0]:
@@ -148,8 +147,8 @@ class HashClock:
     @classmethod
     def unpack(cls, data: bytes) -> HashClock:
         """Unpack a clock from bytes."""
-        assert type(data) is bytes, 'data must be bytes with len > 4'
-        assert len(data) > 4, 'data must be bytes with len > 4'
+        tert(type(data) is bytes, 'data must be bytes with len > 4')
+        vert(len(data) > 4, 'data must be bytes with len > 4')
 
         time, state = struct.unpack(f'!I{len(data)-4}s', data)
         calc_state = recursive_hash(state, time)
@@ -167,32 +166,40 @@ class VectorHashClock:
     node_ids: list[bytes] = field(default=None)
     clocks: dict[bytes, HashClock] = field(default_factory=dict)
 
-    def setup(self, node_ids: list[bytes] = None) -> VectorHashClock:
+    def setup(self, node_ids: list[bytes] = None,
+              clock_uuids: dict[bytes, bytes] = {}) -> VectorHashClock:
         """Set up the vector clock."""
-        assert type(node_ids) is list or node_ids is None, \
-            'node_ids must be list of bytes or None'
+        tert(type(node_ids) is list or node_ids is None,
+            'node_ids must be list of bytes or None')
+        tert(type(clock_uuids) is dict, 'clock_uuids must be dict[bytes, bytes]')
         if node_ids is not None:
             for nid in node_ids:
-                assert type(nid) is bytes, 'node_ids must be list of bytes or None'
-        assert self.clocks == {}, 'clock has already been setup'
+                tert(type(nid) is bytes, 'node_ids must be list of bytes or None')
+
+        if self.clocks != {}:
+            # clock has already been setup
+            return self
 
         if node_ids is not None:
             self.node_ids = [*node_ids]
 
         for nid in self.node_ids:
-            self.clocks[nid] = HashClock()
+            self.clocks[nid] = HashClock(uuid=clock_uuids.get(nid, None))
+            if clock_uuids.get(nid, None):
+                self.clocks[nid].state = (0, clock_uuids.get(nid, None))
 
         return self
 
     @classmethod
-    def create(cls, uuid: bytes, node_ids: list[bytes]) -> VectorHashClock:
+    def create(cls, uuid: bytes, node_ids: list[bytes],
+              clock_uuids: dict[bytes, bytes] = {}) -> VectorHashClock:
         """Create a vector clock."""
-        assert type(uuid) is bytes, 'uuid must be bytes'
-        assert type(node_ids) is list, 'node_ids must be list of bytes'
+        tert(type(uuid) is bytes, 'uuid must be bytes')
+        tert(type(node_ids) is list, 'node_ids must be list of bytes')
         for nid in node_ids:
-            assert type(nid) is bytes, 'node_ids must be list of bytes'
+            tert(type(nid) is bytes, 'node_ids must be list of bytes')
 
-        return cls(uuid, node_ids).setup()
+        return cls(uuid).setup(node_ids, clock_uuids)
 
     def read(self) -> dict:
         """Read the clock as dict mapping node_id to tuple[int, bytes]."""
@@ -206,9 +213,9 @@ class VectorHashClock:
 
     def advance(self, node_id: bytes, state: tuple[int, bytes]) -> dict:
         """Create an update to advance the clock."""
-        assert self.clocks != {}, 'cannot advance clock that has not been setup'
-        assert type(node_id) is bytes, 'node_id must be bytes'
-        assert node_id in self.node_ids, 'node_id not part of this clock'
+        vert(self.clocks != {}, 'cannot advance clock that has not been setup')
+        tert(type(node_id) is bytes, 'node_id must be bytes')
+        vert(node_id in self.node_ids, 'node_id not part of this clock')
 
         if self.clocks[node_id].state is None:
             uuid = recursive_hash(state[1], state[0])
@@ -226,12 +233,12 @@ class VectorHashClock:
 
     def update(self, state: dict) -> VectorHashClock:
         """Update the clock using a dict mapping node_id to tuple[int, bytes]."""
-        assert type(state) is dict, 'state must be a dict mapping node_id to tuple[int, bytes]'
-        assert b'uuid' in state, 'state must include uuid of clock to update'
-        assert bytes_are_same(state[b'uuid'], self.uuid), 'uuid of update must match clock uuid'
+        tert(type(state) is dict, 'state must be a dict mapping node_id to tuple[int, bytes]')
+        vert(b'uuid' in state, 'state must include uuid of clock to update')
+        vert(bytes_are_same(state[b'uuid'], self.uuid), 'uuid of update must match clock uuid')
 
         for id in state:
-            assert id in self.node_ids or id == b'uuid', 'state includes invalid node_id'
+            vert(id in self.node_ids or id == b'uuid', 'state includes invalid node_id')
 
         for id in state:
             if id == b'uuid' or state[id][1] is None:
@@ -273,10 +280,11 @@ class VectorHashClock:
         """Determine if ts1 happens before ts2. As long as at least
             one node_id contained in both timestamps has a higher value
             in ts1 and no node_id shared by both has a higher value in
-            ts2, ts1 happened-before ts2.
+            ts2, ts1 happened-before ts2. Valid timestamps are generated
+            by the advance and read methods.
         """
-        assert not VectorHashClock.are_incomparable(ts1, ts2), \
-            'incomparable timestamps cannot be compared for happens-before relation'
+        vert(not VectorHashClock.are_incomparable(ts1, ts2),
+            'incomparable timestamps cannot be compared for happens-before relation')
 
         reverse_causality = False
         at_least_one_earlier = False
@@ -295,9 +303,9 @@ class VectorHashClock:
             two timestamps share one node_id in common, they are
             comparable.
         """
-        assert type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]'
-        assert type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]'
-        assert b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have both have uuids'
+        tert(type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]')
+        tert(type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]')
+        vert(b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have both have uuids')
 
         if not bytes_are_same(ts1[b'uuid'], ts2[b'uuid']):
             return True
@@ -315,8 +323,8 @@ class VectorHashClock:
     @staticmethod
     def are_concurrent(ts1: dict, ts2: dict) -> bool:
         """Determine if ts1 and ts2 are concurrent."""
-        assert not VectorHashClock.are_incomparable(ts1, ts2), \
-            'incomparable timestamps cannot be compared for concurrency'
+        vert(not VectorHashClock.are_incomparable(ts1, ts2),
+            'incomparable timestamps cannot be compared for concurrency')
 
         return not VectorHashClock.happens_before(ts1, ts2) and \
             not VectorHashClock.happens_before(ts2, ts1)
@@ -336,7 +344,7 @@ class VectorHashClock:
     @classmethod
     def unpack(cls, data: bytes) -> VectorHashClock:
         """Unpack a clock from bytes."""
-        assert type(data) is bytes, 'data must be bytes'
+        tert(type(data) is bytes, 'data must be bytes')
 
         data = json.loads(str(data, 'utf-8'))
         uuid = bytes.fromhex(data['uuid'])
@@ -410,8 +418,8 @@ class PointClockUpdater:
     @classmethod
     def unpack(cls, data: bytes) -> PointClockUpdater:
         """Unpack a clock updater from bytes."""
-        assert type(data) is bytes, 'data must be bytes with len > 6'
-        assert len(data) > 6, 'data must be bytes with len > 6'
+        tert(type(data) is bytes, 'data must be bytes with len > 6')
+        vert(len(data) > 6, 'data must be bytes with len > 6')
 
         max_time, root = struct.unpack(f'!I{len(data)-4}s', data)
 
@@ -448,9 +456,9 @@ class PointClock:
 
     def update(self, state: tuple[int, bytes]) -> PointClock:
         """Update the clock if the state verifies."""
-        assert type(state) in (tuple, list), \
-            'states must be tuple or list of (int, bytes)'
-        assert self.uuid is not None, 'cannot update clock without valid uuid'
+        tert(type(state) in (tuple, list),
+            'states must be tuple or list of (int, bytes)')
+        tert(type(self.uuid) is bytes, 'cannot update clock without valid uuid')
 
         # ignore old updates
         if self.state and self.state[0] is not None and state[0] <= self.state[0]:
@@ -522,8 +530,8 @@ class PointClock:
     @classmethod
     def unpack(cls, data: bytes) -> PointClock:
         """Unpack a clock from bytes."""
-        assert type(data) is bytes, 'data must be bytes with len > 4'
-        assert len(data) > 4, 'data must be bytes with len > 4'
+        tert(type(data) is bytes, 'data must be bytes with len > 4')
+        vert(len(data) > 4, 'data must be bytes with len > 4')
 
         time, state = struct.unpack(f'!I{len(data)-4}s', data)
         calc_state = recursive_next_point(state, time)
@@ -541,32 +549,40 @@ class VectorPointClock:
     node_ids: list[bytes] = field(default=None)
     clocks: dict[bytes, PointClock] = field(default_factory=dict)
 
-    def setup(self, node_ids: list[bytes] = None) -> VectorPointClock:
+    def setup(self, node_ids: list[bytes] = None,
+              clock_uuids: dict[bytes, bytes] = {}) -> VectorPointClock:
         """Set up the vector clock."""
-        assert type(node_ids) is list or node_ids is None, \
-            'node_ids must be list of bytes or None'
+        tert(type(node_ids) is list or node_ids is None,
+            'node_ids must be list of bytes or None')
+        tert(type(clock_uuids) is dict, 'clock_uuids must be dict[bytes, bytes]')
         if node_ids is not None:
             for nid in node_ids:
-                assert type(nid) is bytes, 'node_ids must be list of bytes or None'
-        assert self.clocks == {}, 'clock has already been setup'
+                tert(type(nid) is bytes, 'node_ids must be list of bytes or None')
+
+        if self.clocks != {}:
+            # clock has already been setup
+            return self
 
         if node_ids is not None:
             self.node_ids = [*node_ids]
 
         for nid in self.node_ids:
-            self.clocks[nid] = PointClock()
+            self.clocks[nid] = PointClock(uuid=clock_uuids.get(nid, None))
+            if clock_uuids.get(nid, None):
+                self.clocks[nid].state = (0, clock_uuids.get(nid, None))
 
         return self
 
     @classmethod
-    def create(cls, uuid: bytes, node_ids: list[bytes]) -> VectorPointClock:
+    def create(cls, uuid: bytes, node_ids: list[bytes],
+              clock_uuids: dict[bytes, bytes] = {}) -> VectorPointClock:
         """Create a vector clock."""
-        assert type(uuid) is bytes, 'uuid must be bytes'
-        assert type(node_ids) is list, 'node_ids must be list of bytes'
+        tert(type(uuid) is bytes, 'uuid must be bytes')
+        tert(type(node_ids) is list, 'node_ids must be list of bytes')
         for nid in node_ids:
-            assert type(nid) is bytes, 'node_ids must be list of bytes'
+            tert(type(nid) is bytes, 'node_ids must be list of bytes')
 
-        return cls(uuid, node_ids).setup()
+        return cls(uuid).setup(node_ids, clock_uuids)
 
     def read(self) -> dict:
         """Read the clock as dict mapping node_id to tuple[int, bytes]."""
@@ -580,9 +596,9 @@ class VectorPointClock:
 
     def advance(self, node_id: bytes, state: tuple[int, bytes]) -> dict:
         """Create an update to advance the clock."""
-        assert self.clocks != {}, 'cannot advance clock that has not been setup'
-        assert type(node_id) is bytes, 'node_id must be bytes'
-        assert node_id in self.node_ids, 'node_id not part of this clock'
+        vert(self.clocks != {}, 'cannot advance clock that has not been setup')
+        tert(type(node_id) is bytes, 'node_id must be bytes')
+        vert(node_id in self.node_ids, 'node_id not part of this clock')
 
         if self.clocks[node_id].state is None:
             uuid = recursive_next_point(state[1], state[0])
@@ -602,12 +618,12 @@ class VectorPointClock:
         """Update the clock using a dict mapping node_id to
             tuple[int, bytes] or tuple[int, bytes, bytes].
         """
-        assert type(state) is dict, 'state must be a dict mapping node_id to tuple[int, bytes]'
-        assert b'uuid' in state, 'state must include uuid of clock to update'
-        assert bytes_are_same(state[b'uuid'], self.uuid), 'uuid of update must match clock uuid'
+        tert(type(state) is dict, 'state must be a dict mapping node_id to tuple[int, bytes]')
+        vert(b'uuid' in state, 'state must include uuid of clock to update')
+        vert(bytes_are_same(state[b'uuid'], self.uuid), 'uuid of update must match clock uuid')
 
         for id in state:
-            assert id in self.node_ids or id == b'uuid', 'state includes invalid node_id'
+            vert(id in self.node_ids or id == b'uuid', 'state includes invalid node_id')
 
         for id in state:
             if id == b'uuid' or state[id][1] is None:
@@ -651,8 +667,8 @@ class VectorPointClock:
             in ts1 and no node_id shared by both has a higher value in
             ts2, ts1 happened-before ts2.
         """
-        assert not VectorPointClock.are_incomparable(ts1, ts2), \
-            'incomparable timestamps cannot be compared for happens-before relation'
+        vert(not VectorPointClock.are_incomparable(ts1, ts2),
+            'incomparable timestamps cannot be compared for happens-before relation')
 
         reverse_causality = False
         at_least_one_earlier = False
@@ -671,9 +687,9 @@ class VectorPointClock:
             two timestamps share one node_id in common, they are
             comparable.
         """
-        assert type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]'
-        assert type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]'
-        assert b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have both have uuids'
+        tert(type(ts1) is dict, 'ts1 must be dict mapping node_id to tuple[int, bytes]')
+        tert(type(ts2) is dict, 'ts2 must be dict mapping node_id to tuple[int, bytes]')
+        vert(b'uuid' in ts1 and b'uuid' in ts2, 'ts1 and ts2 must have both have uuids')
 
         if not bytes_are_same(ts1[b'uuid'], ts2[b'uuid']):
             return True
@@ -691,8 +707,8 @@ class VectorPointClock:
     @staticmethod
     def are_concurrent(ts1: dict, ts2: dict) -> bool:
         """Determine if ts1 and ts2 are concurrent."""
-        assert not VectorPointClock.are_incomparable(ts1, ts2), \
-            'incomparable timestamps cannot be compared for concurrency'
+        vert(not VectorPointClock.are_incomparable(ts1, ts2),
+            'incomparable timestamps cannot be compared for concurrency')
 
         return not VectorPointClock.happens_before(ts1, ts2) and \
             not VectorPointClock.happens_before(ts2, ts1)
@@ -712,7 +728,7 @@ class VectorPointClock:
     @classmethod
     def unpack(cls, data: bytes) -> VectorPointClock:
         """Unpack a clock from bytes."""
-        assert type(data) is bytes, 'data must be bytes'
+        tert(type(data) is bytes, 'data must be bytes')
 
         data = json.loads(str(data, 'utf-8'))
         uuid = bytes.fromhex(data['uuid'])

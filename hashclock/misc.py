@@ -13,15 +13,6 @@ def vert(condition: bool, message: str) -> None:
     if not condition:
         raise ValueError(message)
 
-class SecurityError(BaseException):
-    """Exception class for security verification errors."""
-    ...
-
-def sert(condition: bool, message: str) -> None:
-    """Raises SeucurityError with the given message if condition is False."""
-    if not condition:
-        raise SecurityError(message)
-
 # cryptography
 def clamp_scalar(scalar: bytes, from_private_key: bool = False) -> bytes:
     """Make a clamped ed25519 scalar by setting specific bits."""
@@ -109,34 +100,6 @@ def recursive_next_hash_point(preimage: bytes, point: bytes, count: int) -> tupl
     for _ in range(count):
         hashed, point = next_hash_point(hashed, point)
     return (hashed, point)
-
-def recursive_add_point(point: bytes, count: int) -> bytes:
-    """Function to recursively add an ed25519 point to itself."""
-    tert(type(point) is bytes, 'point must be bytes')
-    tert(type(count) is int, 'count must be int >= 0')
-    vert(count >= 0, 'count must be int >= 0')
-
-    vert(nacl.bindings.crypto_core_ed25519_is_valid_point(point),
-         'point must be a valid ed25519 point')
-
-    for _ in range(count):
-        point = nacl.bindings.crypto_core_ed25519_add(point, point)
-
-    return point
-
-def recursive_add_scalar(scalar: bytes, count: int) -> bytes:
-    """Function to recursively add an ed25519 scalar to itself."""
-    tert(type(scalar) is bytes, 'scalar must be bytes')
-    tert(type(count) is int, 'count must be int >= 0')
-    vert(count >= 0, 'count must be int >= 0')
-
-    vert(nacl.bindings.crypto_core_ed25519_SCALARBYTES == len(scalar),
-         'scalar must be a valid ed25519 scalar')
-
-    for _ in range(count):
-        scalar = nacl.bindings.crypto_core_ed25519_scalar_add(scalar, scalar)
-
-    return scalar
 
 def sign_with_scalar(scalar: bytes, message: bytes, seed: bytes = None) -> bytes:
     """Creates a valid signature given an ed25519 scalar that validates

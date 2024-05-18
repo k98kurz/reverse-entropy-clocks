@@ -265,6 +265,44 @@ class TestVectorHashClock(unittest.TestCase):
             assert not vectorclock.clocks[id].can_be_updated()
             assert not vectorclock.clocks[id].has_terminated()
 
+    def test_setup_with_uuids_sets_nodes(self):
+        node_ids = [b'123', b'321']
+        clock1 = classes.HashClock()
+        _ = clock1.setup(3)
+        clock2 = classes.HashClock()
+        _ = clock2.setup(3)
+        uuids = {
+            node_ids[0]: clock1.uuid,
+            node_ids[1]: clock2.uuid,
+        }
+
+        vectorclock = classes.VectorHashClock().setup(node_ids, uuids)
+        assert vectorclock.verify()
+        ts1 = vectorclock.read()
+        assert node_ids[0] in ts1
+        assert node_ids[1] in ts1
+        assert vectorclock.clocks[node_ids[0]] is not clock1
+        assert vectorclock.clocks[node_ids[1]] is not clock2
+
+    def test_create_returns_setup_instance(self):
+        node_ids = [b'123', b'321']
+        clock1 = classes.HashClock()
+        _ = clock1.setup(3)
+        clock2 = classes.HashClock()
+        _ = clock2.setup(3)
+        uuids = {
+            node_ids[0]: clock1.uuid,
+            node_ids[1]: clock2.uuid,
+        }
+
+        vectorclock = classes.VectorHashClock.create(b'test', node_ids, uuids)
+        assert vectorclock.verify()
+        ts1 = vectorclock.read()
+        assert node_ids[0] in ts1
+        assert node_ids[1] in ts1
+        assert vectorclock.clocks[node_ids[0]] is not clock1
+        assert vectorclock.clocks[node_ids[1]] is not clock2
+
     def test_read_returns_all_negative_ones_after_setup(self):
         node_ids = [b'123', b'321']
         vectorclock = classes.VectorHashClock().setup(node_ids)
@@ -729,6 +767,38 @@ class TestVectorPointClock(unittest.TestCase):
         for id in vectorclock.clocks:
             assert id in node_ids
             assert isinstance(vectorclock.clocks[id], classes.PointClock)
+
+    def test_setup_with_uuids_sets_nodes(self):
+        clock1 = classes.PointClock()
+        _ = clock1.setup(3)
+        clock2 = classes.PointClock()
+        _ = clock2.setup(3)
+        node_ids = [clock1.uuid, clock2.uuid]
+        clock_uuids = { n: n for n in node_ids }
+
+        vectorclock = classes.VectorPointClock().setup(node_ids, clock_uuids)
+        assert vectorclock.verify()
+        ts1 = vectorclock.read()
+        assert node_ids[0] in ts1
+        assert node_ids[1] in ts1
+        assert vectorclock.clocks[node_ids[0]] is not clock1
+        assert vectorclock.clocks[node_ids[1]] is not clock2
+
+    def test_create_returns_setup_instance(self):
+        clock1 = classes.PointClock()
+        _ = clock1.setup(3)
+        clock2 = classes.PointClock()
+        _ = clock2.setup(3)
+        node_ids = [clock1.uuid, clock2.uuid]
+        clock_uuids = { n: n for n in node_ids }
+
+        vectorclock = classes.VectorPointClock.create(b'test', node_ids, clock_uuids)
+        assert vectorclock.verify()
+        ts1 = vectorclock.read()
+        assert node_ids[0] in ts1
+        assert node_ids[1] in ts1
+        assert vectorclock.clocks[node_ids[0]] is not clock1
+        assert vectorclock.clocks[node_ids[1]] is not clock2
 
     def test_read_returns_all_negative_ones_after_setup(self):
         node_ids = [b'123', b'321']

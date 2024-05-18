@@ -61,12 +61,14 @@ class ClockProtocol(Protocol):
 
 @runtime_checkable
 class VectorClockProtocol(Protocol):
-    def setup(self, node_ids: list[bytes] = None) -> VectorClockProtocol:
+    def setup(self, node_ids: list[bytes] = None,
+              clock_uuids: dict[bytes, bytes] = {}) -> VectorClockProtocol:
         """Set up the vector clock."""
         ...
 
     @classmethod
-    def create(cls, uuid: bytes, node_ids: list[bytes]) -> VectorClockProtocol:
+    def create(cls, uuid: bytes, node_ids: list[bytes],
+              clock_uuids: dict[bytes, bytes] = {}) -> VectorClockProtocol:
         """Create a vector clock."""
         ...
 
