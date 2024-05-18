@@ -1,1 +1,8 @@
-from reclocks.classes import HashClock, VectorHashClock
+from reclocks.classes import (
+    HashClock,
+    HashClockUpdater,
+    VectorHashClock,
+    PointClock,
+    PointClockUpdater,
+    VectorPointClock,
+)

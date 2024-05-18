@@ -1,5 +1,5 @@
 from hashlib import sha256, sha512
-from nacl.signing import SigningKey, VerifyKey
+from nacl.signing import SigningKey
 import nacl.bindings
 
 # error raising checks

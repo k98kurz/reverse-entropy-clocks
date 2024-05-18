@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from nacl.signing import SigningKey, VerifyKey
 from reclocks.misc import (
     bytes_are_same,
     derive_point_from_scalar,
@@ -9,8 +10,6 @@ from reclocks.misc import (
     derive_key_from_seed,
     sign_with_scalar,
     H_small,
-    SigningKey,
-    VerifyKey,
     tert,
     vert,
 )
@@ -22,7 +21,9 @@ import struct
 
 @dataclass
 class HashClockUpdater:
-    """Implementation of the ClockUpdaterProtocol."""
+    """Implementation of ClockUpdaterProtocol for the Reverse Entropy
+        Hash Clock.
+    """
     seed: bytes
     uuid: bytes
     max_time: int
@@ -64,14 +65,14 @@ class HashClockUpdater:
 
 @dataclass
 class HashClock:
-    """Implementation of the Reverse Entropy Clock."""
+    """Implementation of the Reverse Entropy Hash Clock."""
     uuid: bytes = field(default_factory=bytes)
     state: tuple[int, bytes] = field(default=None)
     updater: HashClockUpdater = field(default=None)
 
     def setup(self, max_time: int, seed_size: int = 16) -> HashClockUpdater|None:
-        """Set up the instance if it hasn't been setup yet and return
-            the updater for the clock. If it has been setup (i.e. has a
+        """Set up the instance if it hasn't been set up yet and return
+            the updater for the clock. If it has been set up (i.e. has a
             uuid), return the updater if there is one or None.
         """
         if self.uuid:
@@ -105,13 +106,11 @@ class HashClock:
         tert(type(self.uuid) is bytes, 'cannot update clock without valid uuid')
 
         # ignore old updates
-        if self.state and self.state[0] is not None and state[0] <= self.state[0]:
+        if self.state and type(self.state[0]) is int and state[0] <= self.state[0]:
             return self
 
         # verify the update maps back to the most recent state
-        calc_state = recursive_hash(state[1], state[0] - self.state[0])
-
-        if bytes_are_same(calc_state, self.state[1]):
+        if self.verify_timestamp(state):
             self.state = tuple(state)
 
         return self
@@ -162,13 +161,16 @@ class HashClock:
 
 @dataclass
 class VectorHashClock:
+    """A vector clock comprised of HashClocks."""
     uuid: bytes = field(default_factory=lambda: uuid4().bytes)
     node_ids: list[bytes] = field(default=None)
     clocks: dict[bytes, HashClock] = field(default_factory=dict)
 
     def setup(self, node_ids: list[bytes] = None,
               clock_uuids: dict[bytes, bytes] = {}) -> VectorHashClock:
-        """Set up the vector clock."""
+        """Set up the vector clock. The clock_uuids parameter must be a
+            dict that maps node_id to clock.uuid.
+        """
         tert(type(node_ids) is list or node_ids is None,
             'node_ids must be list of bytes or None')
         tert(type(clock_uuids) is dict, 'clock_uuids must be dict[bytes, bytes]')
@@ -193,7 +195,9 @@ class VectorHashClock:
     @classmethod
     def create(cls, uuid: bytes, node_ids: list[bytes],
               clock_uuids: dict[bytes, bytes] = {}) -> VectorHashClock:
-        """Create a vector clock."""
+        """Create a vector clock. The clock_uuids parameter must be a
+            dict that maps node_id to clock.uuid.
+        """
         tert(type(uuid) is bytes, 'uuid must be bytes')
         tert(type(node_ids) is list, 'node_ids must be list of bytes')
         for nid in node_ids:
@@ -202,7 +206,10 @@ class VectorHashClock:
         return cls(uuid).setup(node_ids, clock_uuids)
 
     def read(self) -> dict:
-        """Read the clock as dict mapping node_id to tuple[int, bytes]."""
+        """Read the clock as dict mapping node_id to tuple[int, bytes].
+            Return value includes vector clock uuid at the key b'uuid'
+            and is the timestamp used for causality comparisons.
+        """
         result = {b'uuid': self.uuid}
 
         for id in self.node_ids:
@@ -212,7 +219,10 @@ class VectorHashClock:
         return result
 
     def advance(self, node_id: bytes, state: tuple[int, bytes]) -> dict:
-        """Create an update to advance the clock."""
+        """Create an update to advance the clock given the output of a
+            call to `advance` from the underlying HashClock associated
+            with the given node_id.
+        """
         vert(self.clocks != {}, 'cannot advance clock that has not been setup')
         tert(type(node_id) is bytes, 'node_id must be bytes')
         vert(node_id in self.node_ids, 'node_id not part of this clock')
@@ -232,7 +242,11 @@ class VectorHashClock:
         return update
 
     def update(self, state: dict) -> VectorHashClock:
-        """Update the clock using a dict mapping node_id to tuple[int, bytes]."""
+        """Update the clock using a dict mapping node_id to
+            tuple[int, bytes]. The state must also include the vector
+            clock uuid at the key b'uuid'. The expected input is the
+            output of the `advance` method.
+        """
         tert(type(state) is dict, 'state must be a dict mapping node_id to tuple[int, bytes]')
         vert(b'uuid' in state, 'state must include uuid of clock to update')
         vert(bytes_are_same(state[b'uuid'], self.uuid), 'uuid of update must match clock uuid')
@@ -262,7 +276,9 @@ class VectorHashClock:
         return True
 
     def verify_timestamp(self, timestamp: dict[bytes, bytes|tuple]) -> bool:
-        """Verify that the timestamp is valid."""
+        """Verify that the timestamp is valid. Expected input is the
+            output of `read` or `advance`.
+        """
         if b'uuid' not in timestamp or timestamp[b'uuid'] != self.uuid:
             return False
 
@@ -281,7 +297,7 @@ class VectorHashClock:
             one node_id contained in both timestamps has a higher value
             in ts1 and no node_id shared by both has a higher value in
             ts2, ts1 happened-before ts2. Valid timestamps are generated
-            by the advance and read methods.
+            by the `advance` and `read` methods.
         """
         vert(not VectorHashClock.are_incomparable(ts1, ts2),
             'incomparable timestamps cannot be compared for happens-before relation')
@@ -368,7 +384,9 @@ class VectorHashClock:
 
 @dataclass
 class PointClockUpdater:
-    """Implementation of the ClockUpdaterProtocol."""
+    """Implementation of ClockUpdaterProtocol for the Reverse Entropy
+        Point Clock.
+    """
     seed: bytes
     uuid: bytes
     max_time: int
@@ -428,7 +446,7 @@ class PointClockUpdater:
 
 @dataclass
 class PointClock:
-    """Implementation of the Ed25519 Reverse Entropy Clock."""
+    """Implementation of the Reverse Entropy Point Clock (Ed25519)."""
     uuid: bytes = field(default_factory=bytes)
     state: tuple[int, bytes] = field(default=None)
     updater: PointClockUpdater = field(default=None)
@@ -461,15 +479,11 @@ class PointClock:
         tert(type(self.uuid) is bytes, 'cannot update clock without valid uuid')
 
         # ignore old updates
-        if self.state and self.state[0] is not None and state[0] <= self.state[0]:
+        if self.state and type(self.state[0]) is int and state[0] <= self.state[0]:
             return self
 
-        time, calc_state = state[0], state[1]
-
         # verify the update maps back to the most recent state
-        calc_state = recursive_next_point(calc_state, time - self.state[0])
-
-        if bytes_are_same(calc_state, self.state[1]):
+        if self.verify_timestamp(state):
             self.state = tuple(state)
 
         return self
@@ -486,7 +500,7 @@ class PointClock:
             return False
 
     def verify_timestamp(self, timestamp: tuple) -> bool:
-        """Verify a timestamp."""
+        """Verify the timestamp is valid for this clock."""
         if type(timestamp) is not tuple or len(timestamp) < 2:
             return False
         if type(timestamp[1]) is not bytes or len(timestamp[1]) == 0:
@@ -545,13 +559,15 @@ class PointClock:
 
 @dataclass
 class VectorPointClock:
+    """A vector clock comprised of PointClocks."""
     uuid: bytes = field(default_factory=lambda: uuid4().bytes)
     node_ids: list[bytes] = field(default=None)
     clocks: dict[bytes, PointClock] = field(default_factory=dict)
 
     def setup(self, node_ids: list[bytes] = None,
               clock_uuids: dict[bytes, bytes] = {}) -> VectorPointClock:
-        """Set up the vector clock."""
+        """Set up the vector clock. The clock_uuids parameter must be a
+            dict that maps node_id to clock.uuid."""
         tert(type(node_ids) is list or node_ids is None,
             'node_ids must be list of bytes or None')
         tert(type(clock_uuids) is dict, 'clock_uuids must be dict[bytes, bytes]')
@@ -576,7 +592,8 @@ class VectorPointClock:
     @classmethod
     def create(cls, uuid: bytes, node_ids: list[bytes],
               clock_uuids: dict[bytes, bytes] = {}) -> VectorPointClock:
-        """Create a vector clock."""
+        """Create a vector clock. The clock_uuids parameter must be a
+            dict that maps node_id to clock.uuid."""
         tert(type(uuid) is bytes, 'uuid must be bytes')
         tert(type(node_ids) is list, 'node_ids must be list of bytes')
         for nid in node_ids:
@@ -585,7 +602,10 @@ class VectorPointClock:
         return cls(uuid).setup(node_ids, clock_uuids)
 
     def read(self) -> dict:
-        """Read the clock as dict mapping node_id to tuple[int, bytes]."""
+        """Read the clock as dict mapping node_id to tuple[int, bytes].
+            Return value includes vector clock uuid at the key b'uuid'
+            and is the timestamp used for causality comparisons.
+        """
         result = {b'uuid': self.uuid}
 
         for id in self.node_ids:
@@ -595,7 +615,10 @@ class VectorPointClock:
         return result
 
     def advance(self, node_id: bytes, state: tuple[int, bytes]) -> dict:
-        """Create an update to advance the clock."""
+        """Create an update to advance the clock given the output of a
+            call to `advance` or `advance_and_sign` from the underlying
+            PointClock associated with the given node_id.
+        """
         vert(self.clocks != {}, 'cannot advance clock that has not been setup')
         tert(type(node_id) is bytes, 'node_id must be bytes')
         vert(node_id in self.node_ids, 'node_id not part of this clock')
@@ -616,7 +639,9 @@ class VectorPointClock:
 
     def update(self, state: dict[bytes, tuple]) -> VectorPointClock:
         """Update the clock using a dict mapping node_id to
-            tuple[int, bytes] or tuple[int, bytes, bytes].
+            tuple[int, bytes] or tuple[int, bytes, bytes]. The state
+            must also include the vector clock uuid at the key b'uuid'.
+            The expected input is the output of the `advance` method.
         """
         tert(type(state) is dict, 'state must be a dict mapping node_id to tuple[int, bytes]')
         vert(b'uuid' in state, 'state must include uuid of clock to update')
@@ -647,7 +672,9 @@ class VectorPointClock:
         return True
 
     def verify_timestamp(self, timestamp: dict[bytes, bytes|tuple]) -> bool:
-        """Verify that the timestamp is valid."""
+        """Verify that the timestamp is valid. Expected input is the
+            output of `read` or `advance`.
+        """
         if b'uuid' not in timestamp or timestamp[b'uuid'] != self.uuid:
             return False
 
@@ -662,7 +689,11 @@ class VectorPointClock:
 
     def verify_signed_timestamp(
             self, timestamp: dict[bytes, bytes|tuple], message: bytes) -> bool:
-        """Verify that a timestamp which includes a signature is valid."""
+        """Verify that a timestamp which includes a signature is valid.
+            This timestamp must be produced by passing the output of
+            `advance_and_sign` from an underlying PointClock to the
+            `advance` method on the VectorPointClock.
+        """
         if b'uuid' not in timestamp or timestamp[b'uuid'] != self.uuid:
             return False
 
@@ -687,7 +718,8 @@ class VectorPointClock:
         """Determine if ts1 happens before ts2. As long as at least
             one node_id contained in both timestamps has a higher value
             in ts1 and no node_id shared by both has a higher value in
-            ts2, ts1 happened-before ts2.
+            ts2, ts1 happened-before ts2. Valid timestamps are generated
+            by the `advance` and `read` methods.
         """
         vert(not VectorPointClock.are_incomparable(ts1, ts2),
             'incomparable timestamps cannot be compared for happens-before relation')
